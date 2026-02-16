@@ -11,11 +11,18 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Allow up to 60 seconds for Gmail API calls
 
 export async function GET(request: NextRequest) {
-  // Verify the request is from Vercel Cron
+  // Verify the request is from Vercel Cron or has the test key
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
+  const testKey = request.nextUrl.searchParams.get("key");
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // Allow access via: Vercel cron header, or ?key=CRON_SECRET in URL
+  const isAuthorized =
+    !cronSecret ||
+    authHeader === `Bearer ${cronSecret}` ||
+    testKey === cronSecret;
+
+  if (!isAuthorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
