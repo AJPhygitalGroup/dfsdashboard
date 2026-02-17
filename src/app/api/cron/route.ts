@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTodaysCsvEmails } from "@/lib/gmail";
-import {
-  parseInspectionCSV,
-  parseDefectsCSV,
-  parseWorkOrdersCSV,
-} from "@/lib/parse-csv";
-import { setDashboardData } from "@/lib/store";
+import { saveCsvToBlob, type CsvType } from "@/lib/blob-store";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Allow up to 60 seconds for Gmail API calls
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   // Verify the request is from Vercel Cron or has the test key
@@ -16,7 +11,6 @@ export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const testKey = request.nextUrl.searchParams.get("key");
 
-  // Allow access via: Vercel cron header, or ?key=CRON_SECRET in URL
   const isAuthorized =
     !cronSecret ||
     authHeader === `Bearer ${cronSecret}` ||
@@ -35,38 +29,20 @@ export async function GET(request: NextRequest) {
       `[CRON] Found ${result.attachments.length} CSV attachments from ${result.emailsProcessed} emails`
     );
 
-    let inspectionsCount = 0;
-    let defectsCount = 0;
-    let workOrdersCount = 0;
+    const savedUrls: Record<string, string> = {};
 
     for (const attachment of result.attachments) {
       console.log(
-        `[CRON] Processing: ${attachment.filename} (type: ${attachment.type})`
+        `[CRON] Saving to Blob: ${attachment.filename} (type: ${attachment.type})`
       );
 
-      switch (attachment.type) {
-        case "inspections": {
-          const data = parseInspectionCSV(attachment.data);
-          setDashboardData({ inspections: data });
-          inspectionsCount = data.length;
-          console.log(`[CRON] Loaded ${data.length} inspection records`);
-          break;
-        }
-        case "defects": {
-          const data = parseDefectsCSV(attachment.data);
-          setDashboardData({ defects: data });
-          defectsCount = data.length;
-          console.log(`[CRON] Loaded ${data.length} defect records`);
-          break;
-        }
-        case "work_orders": {
-          const data = parseWorkOrdersCSV(attachment.data);
-          setDashboardData({ workOrders: data });
-          workOrdersCount = data.length;
-          console.log(`[CRON] Loaded ${data.length} work order records`);
-          break;
-        }
-      }
+      const url = await saveCsvToBlob(
+        attachment.type as CsvType,
+        attachment.data
+      );
+      savedUrls[attachment.type] = url;
+
+      console.log(`[CRON] Saved ${attachment.type} → ${url}`);
     }
 
     return NextResponse.json({
@@ -74,11 +50,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
       emailsProcessed: result.emailsProcessed,
       attachmentsFound: result.attachments.length,
-      records: {
-        inspections: inspectionsCount,
-        defects: defectsCount,
-        workOrders: workOrdersCount,
-      },
+      savedUrls,
       errors: result.errors,
     });
   } catch (error) {

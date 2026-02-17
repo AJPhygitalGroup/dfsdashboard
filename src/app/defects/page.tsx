@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Papa from "papaparse";
 import StatCard from "@/components/StatCard";
 import { EXCLUDED_DEFECTS } from "@/lib/excluded-defects";
+import { useBlobCsv } from "@/lib/use-blob-csv";
 
 interface DefectRow {
   defectReportedAt: string;
@@ -27,47 +28,50 @@ function toBool(v: string | undefined | null): boolean {
 }
 
 export default function DefectsPage() {
+  const { rawData: defectsRaw, loading: loadingDefects, source: defectsSource, handleFileUpload: handleDefectsUpload } = useBlobCsv("defects");
+  const { rawData: woRaw, loading: loadingWO, handleFileUpload: handleWOUpload } = useBlobCsv("work_orders");
+
   const [defects, setDefects] = useState<DefectRow[]>([]);
   const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
 
+  // Parse defects from blob/upload raw data
+  useEffect(() => {
+    if (defectsRaw.length > 0) {
+      setDefects(
+        defectsRaw.map((r) => ({
+          defectReportedAt: r["Defect Reported At"] || "",
+          organizationName: r["Organization Name"] || "",
+          vehicleFleetId: r["Vehicle Fleet ID"] || "",
+          defectDescription: r["Defect Description"] || "",
+          reportedBy: r["Reported By"] || "",
+          defectWorkApproved: toBool(r["Defect Work Approved"]),
+          defectWorkAccepted: toBool(r["Defect Work Accepted"]),
+          defectWorkCompleted: toBool(r["Defect Work Completed"]),
+        }))
+      );
+    }
+  }, [defectsRaw]);
+
+  // Parse work orders from blob/upload raw data
+  useEffect(() => {
+    if (woRaw.length > 0) {
+      setWorkOrders(
+        woRaw.map((r) => ({
+          vehicleFleetId: r["Vehicle Fleet ID"] || "",
+          defectDescription: r["Defect Description"] || "",
+        }))
+      );
+    }
+  }, [woRaw]);
+
   const handleDefectsFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        setDefects(
-          (results.data as Record<string, string>[]).map((r) => ({
-            defectReportedAt: r["Defect Reported At"] || "",
-            organizationName: r["Organization Name"] || "",
-            vehicleFleetId: r["Vehicle Fleet ID"] || "",
-            defectDescription: r["Defect Description"] || "",
-            reportedBy: r["Reported By"] || "",
-            defectWorkApproved: toBool(r["Defect Work Approved"]),
-            defectWorkAccepted: toBool(r["Defect Work Accepted"]),
-            defectWorkCompleted: toBool(r["Defect Work Completed"]),
-          }))
-        );
-      },
-    });
+    const f = e.target.files?.[0];
+    if (f) handleDefectsUpload(f);
   };
 
   const handleWorkOrdersFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        setWorkOrders(
-          (results.data as Record<string, string>[]).map((r) => ({
-            vehicleFleetId: r["Vehicle Fleet ID"] || "",
-            defectDescription: r["Defect Description"] || "",
-          }))
-        );
-      },
-    });
+    const f = e.target.files?.[0];
+    if (f) handleWOUpload(f);
   };
 
   // Build work order lookup set for cross-reference
@@ -218,14 +222,20 @@ export default function DefectsPage() {
             />
           </div>
         </div>
+        {defectsSource === "blob" && (
+          <p className="text-xs text-green-600 mt-2">Data loaded automatically from latest email report</p>
+        )}
       </div>
 
-      {defects.length === 0 ? (
+      {(loadingDefects || loadingWO) ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <p className="text-gray-500">Loading data...</p>
+        </div>
+      ) : defects.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <p className="text-4xl mb-3">⚠️</p>
           <p className="text-gray-500">
-            Upload a defects CSV to see metrics. Optionally upload work orders
-            CSV to cross-reference and exclude converted defects.
+            No defect data available. Upload a CSV or wait for the daily email sync.
           </p>
         </div>
       ) : (

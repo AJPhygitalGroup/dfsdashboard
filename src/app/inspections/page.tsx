@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Papa from "papaparse";
 import StatCard from "@/components/StatCard";
+import { useBlobCsv } from "@/lib/use-blob-csv";
 
 interface InspectionRow {
   dspName: string;
@@ -26,31 +26,22 @@ function formatDur(seconds: number): string {
 }
 
 export default function InspectionsPage() {
-  const [data, setData] = useState<InspectionRow[]>([]);
+  const { rawData, loading, source, handleFileUpload } = useBlobCsv("inspections");
   const [selectedDsp, setSelectedDsp] = useState<string>("all");
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const rows = (results.data as Record<string, string>[]).map((r) => {
-          const secs = parseDuration(r["Time Taken"] || "0:00:00");
-          return {
-            dspName: r["DSP Name"] || "",
-            vehicleFleetId: r["Vehicle Fleet ID"] || "",
-            startTime: r["Start Time (EST)"] || "",
-            endTime: r["End Time (EST)"] || "",
-            timeTakenSeconds: secs,
-            timeTakenFormatted: formatDur(secs),
-          };
-        });
-        setData(rows);
-      },
+  const data: InspectionRow[] = useMemo(() => {
+    return rawData.map((r) => {
+      const secs = parseDuration(r["Time Taken"] || "0:00:00");
+      return {
+        dspName: r["DSP Name"] || "",
+        vehicleFleetId: r["Vehicle Fleet ID"] || "",
+        startTime: r["Start Time (EST)"] || "",
+        endTime: r["End Time (EST)"] || "",
+        timeTakenSeconds: secs,
+        timeTakenFormatted: formatDur(secs),
+      };
     });
-  };
+  }, [rawData]);
 
   const dspNames = useMemo(() => {
     const set = new Set(data.map((d) => d.dspName));
@@ -103,7 +94,10 @@ export default function InspectionsPage() {
           <input
             type="file"
             accept=".csv"
-            onChange={handleFile}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFileUpload(f);
+            }}
             className="block text-sm border rounded p-2 flex-1"
           />
           {data.length > 0 && (
@@ -121,13 +115,20 @@ export default function InspectionsPage() {
             </select>
           )}
         </div>
+        {source === "blob" && (
+          <p className="text-xs text-green-600 mt-2">Data loaded automatically from latest email report</p>
+        )}
       </div>
 
-      {data.length === 0 ? (
+      {loading ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <p className="text-gray-500">Loading data...</p>
+        </div>
+      ) : data.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <p className="text-4xl mb-3">🔍</p>
           <p className="text-gray-500">
-            Upload an inspection CSV to see metrics.
+            No inspection data available. Upload a CSV or wait for the daily email sync.
           </p>
         </div>
       ) : (

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Papa from "papaparse";
 import StatCard from "@/components/StatCard";
+import { useBlobCsv } from "@/lib/use-blob-csv";
 
 interface WORow {
   dspName: string;
@@ -65,34 +65,24 @@ const statusColors: Record<WOStatus, string> = {
 };
 
 export default function WorkOrdersPage() {
-  const [data, setData] = useState<WORow[]>([]);
+  const { rawData, loading, source, handleFileUpload } = useBlobCsv("work_orders");
   const [filterStatus, setFilterStatus] = useState<WOStatus | "all">("all");
   const [filterTech, setFilterTech] = useState<string>("all");
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        setData(
-          (results.data as Record<string, string>[]).map((r) => ({
-            dspName: r["DSP Name"] || "",
-            vehicleFleetId: r["Vehicle Fleet ID"] || "",
-            defectDescription: r["Defect Description"] || "",
-            defectReportedAt: r["Defect Reported At (EST)"] || "",
-            workOrderCreatedAt: r["Work Order Created At (EST)"] || "",
-            workApprovedBy: r["Work Approved By"] || "",
-            technician: r["Technician"] || "",
-            technicianResponseAt: r["Technician Response At (EST)"] || "",
-            workOrderAccepted: toBool(r["Work Order Accepted"]),
-            workOrderCompletedAt: r["Work Order Completed At (EST)"] || "",
-          }))
-        );
-      },
-    });
-  };
+  const data: WORow[] = useMemo(() => {
+    return rawData.map((r) => ({
+      dspName: r["DSP Name"] || "",
+      vehicleFleetId: r["Vehicle Fleet ID"] || "",
+      defectDescription: r["Defect Description"] || "",
+      defectReportedAt: r["Defect Reported At (EST)"] || "",
+      workOrderCreatedAt: r["Work Order Created At (EST)"] || "",
+      workApprovedBy: r["Work Approved By"] || "",
+      technician: r["Technician"] || "",
+      technicianResponseAt: r["Technician Response At (EST)"] || "",
+      workOrderAccepted: toBool(r["Work Order Accepted"]),
+      workOrderCompletedAt: r["Work Order Completed At (EST)"] || "",
+    }));
+  }, [rawData]);
 
   const technicians = useMemo(() => {
     const set = new Set(data.map((d) => d.technician).filter(Boolean));
@@ -149,7 +139,10 @@ export default function WorkOrdersPage() {
           <input
             type="file"
             accept=".csv"
-            onChange={handleFile}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFileUpload(f);
+            }}
             className="block text-sm border rounded p-2 flex-1 min-w-[200px]"
           />
           {data.length > 0 && (
@@ -181,13 +174,20 @@ export default function WorkOrdersPage() {
             </>
           )}
         </div>
+        {source === "blob" && (
+          <p className="text-xs text-green-600 mt-2">Data loaded automatically from latest email report</p>
+        )}
       </div>
 
-      {data.length === 0 ? (
+      {loading ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <p className="text-gray-500">Loading data...</p>
+        </div>
+      ) : data.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <p className="text-4xl mb-3">🔧</p>
           <p className="text-gray-500">
-            Upload a work orders CSV to see metrics.
+            No work order data available. Upload a CSV or wait for the daily email sync.
           </p>
         </div>
       ) : (
