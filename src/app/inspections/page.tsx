@@ -88,7 +88,7 @@ export default function InspectionsPage() {
       {/* Upload */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <h2 className="text-lg font-semibold mb-3 text-[#1a3a5f]">
-          🔍 Inspection Metrics
+          Inspection Metrics
         </h2>
         <div className="flex items-center gap-4">
           <input
@@ -158,7 +158,7 @@ export default function InspectionsPage() {
             {/* Slowest */}
             <div className="bg-white rounded-lg shadow p-5">
               <h3 className="font-semibold text-red-600 mb-3">
-                🐢 Top 3 Slowest Inspections
+                Top 3 Slowest Inspections
               </h3>
               <table className="w-full text-sm">
                 <thead>
@@ -185,7 +185,7 @@ export default function InspectionsPage() {
             {/* Fastest */}
             <div className="bg-white rounded-lg shadow p-5">
               <h3 className="font-semibold text-green-600 mb-3">
-                🐇 Top 3 Fastest Inspections
+                Top 3 Fastest Inspections
               </h3>
               <table className="w-full text-sm">
                 <thead>

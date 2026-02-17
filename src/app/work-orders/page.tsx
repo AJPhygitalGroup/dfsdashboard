@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import StatCard from "@/components/StatCard";
+import DateRangeFilter from "@/components/DateRangeFilter";
 import { useBlobCsv } from "@/lib/use-blob-csv";
 
 interface WORow {
@@ -58,6 +59,17 @@ function timeInStatus(wo: WORow): string {
   }
 }
 
+/** Parse a date string to YYYY-MM-DD for comparison */
+function toDateKey(dateStr: string): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 const statusColors: Record<WOStatus, string> = {
   Pending: "bg-yellow-100 text-yellow-800",
   Accepted: "bg-blue-100 text-blue-800",
@@ -68,6 +80,8 @@ export default function WorkOrdersPage() {
   const { rawData, loading, source, handleFileUpload } = useBlobCsv("work_orders");
   const [filterStatus, setFilterStatus] = useState<WOStatus | "all">("all");
   const [filterTech, setFilterTech] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const data: WORow[] = useMemo(() => {
     return rawData.map((r) => ({
@@ -84,6 +98,12 @@ export default function WorkOrdersPage() {
     }));
   }, [rawData]);
 
+  // All dates for the filter auto-detect
+  const allDates = useMemo(
+    () => data.map((d) => d.workOrderCreatedAt || d.defectReportedAt),
+    [data]
+  );
+
   const technicians = useMemo(() => {
     const set = new Set(data.map((d) => d.technician).filter(Boolean));
     return Array.from(set).sort();
@@ -93,9 +113,16 @@ export default function WorkOrdersPage() {
     return data.filter((wo) => {
       if (filterStatus !== "all" && getStatus(wo) !== filterStatus) return false;
       if (filterTech !== "all" && wo.technician !== filterTech) return false;
+      // Date range filter (based on work order created date)
+      if (dateFrom || dateTo) {
+        const dk = toDateKey(wo.workOrderCreatedAt || wo.defectReportedAt);
+        if (!dk) return false;
+        if (dateFrom && dk < dateFrom) return false;
+        if (dateTo && dk > dateTo) return false;
+      }
       return true;
     });
-  }, [data, filterStatus, filterTech]);
+  }, [data, filterStatus, filterTech, dateFrom, dateTo]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<WOStatus, number> = {
@@ -103,19 +130,19 @@ export default function WorkOrdersPage() {
       Accepted: 0,
       Completed: 0,
     };
-    data.forEach((wo) => {
+    filtered.forEach((wo) => {
       counts[getStatus(wo)]++;
     });
     return counts;
-  }, [data]);
+  }, [filtered]);
 
-  // Tech stats
+  // Tech stats (use filtered so date range applies)
   const techStats = useMemo(() => {
     const map: Record<
       string,
       { name: string; total: number; completed: number; pending: number; accepted: number }
     > = {};
-    data.forEach((wo) => {
+    filtered.forEach((wo) => {
       const tech = wo.technician || "Unassigned";
       if (!map[tech])
         map[tech] = { name: tech, total: 0, completed: 0, pending: 0, accepted: 0 };
@@ -126,16 +153,16 @@ export default function WorkOrdersPage() {
       else map[tech].pending++;
     });
     return Object.values(map).sort((a, b) => b.total - a.total);
-  }, [data]);
+  }, [filtered]);
 
   return (
     <div>
-      {/* Upload */}
+      {/* Upload & Filters */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <h2 className="text-lg font-semibold mb-3 text-[#1a3a5f]">
-          🔧 Work Order Metrics
+          Work Order Metrics
         </h2>
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4 mb-3">
           <input
             type="file"
             accept=".csv"
@@ -174,6 +201,15 @@ export default function WorkOrdersPage() {
             </>
           )}
         </div>
+        {data.length > 0 && (
+          <DateRangeFilter
+            dates={allDates}
+            onRangeChange={(from, to) => {
+              setDateFrom(from);
+              setDateTo(to);
+            }}
+          />
+        )}
         {source === "blob" && (
           <p className="text-xs text-green-600 mt-2">Data loaded automatically from latest email report</p>
         )}
@@ -196,7 +232,7 @@ export default function WorkOrdersPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <StatCard
               title="Total Work Orders"
-              value={data.length}
+              value={filtered.length}
               color="#2563eb"
             />
             <StatCard
@@ -321,7 +357,7 @@ export default function WorkOrdersPage() {
                         <td className="py-2 pr-3 text-xs">
                           {wo.technician
                             ? wo.technician.split("@")[0]
-                            : "—"}
+                            : "\u2014"}
                         </td>
                         <td className="py-2 pr-3">
                           <span
