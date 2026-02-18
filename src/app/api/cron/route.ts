@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTodaysCsvEmails } from "@/lib/gmail";
-import { saveCsvToBlob, type CsvType } from "@/lib/blob-store";
+import { saveCsvToBlob, saveSyncMetadata, type CsvType } from "@/lib/blob-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -43,6 +43,15 @@ export async function GET(request: NextRequest) {
       savedUrls[attachment.type] = url;
 
       console.log(`[CRON] Saved ${attachment.type} → ${url}`);
+    }
+
+    // Save sync metadata so the dashboard can show when data was last updated
+    if (result.attachments.length > 0) {
+      await saveSyncMetadata({
+        timestamp: new Date().toISOString(),
+        emailsProcessed: result.emailsProcessed,
+        attachmentsFound: result.attachments.length,
+      });
     }
 
     return NextResponse.json({

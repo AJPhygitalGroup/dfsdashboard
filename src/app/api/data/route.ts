@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllCsvUrls } from "@/lib/blob-store";
+import { getAllCsvUrls, getSyncMetadataUrl } from "@/lib/blob-store";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +7,17 @@ export async function GET(request: NextRequest) {
   const type = request.nextUrl.searchParams.get("type");
 
   try {
+    // Return sync metadata
+    if (type === "sync-metadata") {
+      const metaUrl = await getSyncMetadataUrl();
+      if (!metaUrl) {
+        return NextResponse.json({ error: "No sync metadata" }, { status: 404 });
+      }
+      const res = await fetch(metaUrl);
+      const json = await res.json();
+      return NextResponse.json(json);
+    }
+
     const urls = await getAllCsvUrls();
 
     if (type && (type === "inspections" || type === "defects" || type === "work_orders")) {

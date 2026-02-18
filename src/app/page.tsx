@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import StatCard from "@/components/StatCard";
 import { useBlobCsv } from "@/lib/use-blob-csv";
+import SyncBanner from "@/components/SyncBanner";
 
 function toBool(v: string | undefined | null): boolean {
   if (!v) return false;
@@ -11,7 +12,7 @@ function toBool(v: string | undefined | null): boolean {
 }
 
 export default function OverviewPage() {
-  const { rawData: inspRaw, loading: loadingInsp, source: inspSource } = useBlobCsv("inspections");
+  const { rawData: inspRaw, loading: loadingInsp, source: inspSource, syncInfo } = useBlobCsv("inspections");
   const { rawData: defRaw, loading: loadingDef } = useBlobCsv("defects");
   const { rawData: woRaw, loading: loadingWO } = useBlobCsv("work_orders");
 
@@ -49,9 +50,7 @@ export default function OverviewPage() {
       ) : hasData ? (
         <>
           {autoLoaded && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-6 text-sm text-green-700">
-              Data loaded automatically from latest email report
-            </div>
+            <SyncBanner syncTimestamp={syncInfo?.timestamp} variant="banner" />
           )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -121,7 +120,7 @@ export default function OverviewPage() {
             Welcome to DFS Fleet Metrics
           </h2>
           <p className="text-gray-500 mb-4">
-            No data available yet. The agent syncs daily at 7:00 AM EST, or
+            No data available yet. The agent syncs every hour, or
             navigate to a specific tab to upload CSVs manually.
           </p>
           <div className="flex justify-center gap-6 text-sm text-gray-400">

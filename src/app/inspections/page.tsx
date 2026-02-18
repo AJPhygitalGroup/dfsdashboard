@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import StatCard from "@/components/StatCard";
+import SyncBanner from "@/components/SyncBanner";
 import { useBlobCsv } from "@/lib/use-blob-csv";
 
 interface InspectionRow {
@@ -26,7 +27,7 @@ function formatDur(seconds: number): string {
 }
 
 export default function InspectionsPage() {
-  const { rawData, loading, source, handleFileUpload } = useBlobCsv("inspections");
+  const { rawData, loading, source, syncInfo, handleFileUpload } = useBlobCsv("inspections");
   const [selectedDsp, setSelectedDsp] = useState<string>("all");
 
   const data: InspectionRow[] = useMemo(() => {
@@ -116,7 +117,7 @@ export default function InspectionsPage() {
           )}
         </div>
         {source === "blob" && (
-          <p className="text-xs text-green-600 mt-2">Data loaded automatically from latest email report</p>
+          <SyncBanner syncTimestamp={syncInfo?.timestamp} />
         )}
       </div>
 

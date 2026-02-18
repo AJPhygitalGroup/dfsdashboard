@@ -41,3 +41,27 @@ export async function getAllCsvUrls(): Promise<
 
   return result as Record<CsvType, string | null>;
 }
+
+/** Save sync metadata (timestamp, email count, etc.) */
+export async function saveSyncMetadata(metadata: {
+  timestamp: string;
+  emailsProcessed: number;
+  attachmentsFound: number;
+}): Promise<string> {
+  const path = `${BLOB_PREFIX}sync-metadata.json`;
+  const blob = await put(path, JSON.stringify(metadata), {
+    access: "public",
+    contentType: "application/json",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  });
+  return blob.url;
+}
+
+/** Get sync metadata URL */
+export async function getSyncMetadataUrl(): Promise<string | null> {
+  const path = `${BLOB_PREFIX}sync-metadata.json`;
+  const { blobs } = await list({ prefix: path });
+  if (blobs.length === 0) return null;
+  return blobs[0].url;
+}

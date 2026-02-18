@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import StatCard from "@/components/StatCard";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { EXCLUDED_DEFECTS } from "@/lib/excluded-defects";
+import SyncBanner from "@/components/SyncBanner";
 import { useBlobCsv } from "@/lib/use-blob-csv";
 
 interface DefectRow {
@@ -39,7 +40,7 @@ function toDateKey(dateStr: string): string {
 }
 
 export default function DefectsPage() {
-  const { rawData: defectsRaw, loading: loadingDefects, source: defectsSource, handleFileUpload: handleDefectsUpload } = useBlobCsv("defects");
+  const { rawData: defectsRaw, loading: loadingDefects, source: defectsSource, syncInfo, handleFileUpload: handleDefectsUpload } = useBlobCsv("defects");
   const { rawData: woRaw, loading: loadingWO, handleFileUpload: handleWOUpload } = useBlobCsv("work_orders");
 
   const [defects, setDefects] = useState<DefectRow[]>([]);
@@ -350,7 +351,7 @@ export default function DefectsPage() {
           />
         )}
         {defectsSource === "blob" && (
-          <p className="text-xs text-green-600 mt-2">Data loaded automatically from latest email report</p>
+          <SyncBanner syncTimestamp={syncInfo?.timestamp} />
         )}
       </div>
 
