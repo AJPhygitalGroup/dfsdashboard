@@ -17,6 +17,7 @@ export async function saveCsvToBlob(
     access: "public",
     contentType: "text/csv",
     addRandomSuffix: false,
+    allowOverwrite: true,
   });
   return blob.url;
 }
