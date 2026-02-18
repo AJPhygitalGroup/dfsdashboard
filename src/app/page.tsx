@@ -120,7 +120,7 @@ export default function OverviewPage() {
             Welcome to DFS Fleet Metrics
           </h2>
           <p className="text-gray-500 mb-4">
-            No data available yet. The agent syncs every hour, or
+            No data available yet. The agent syncs daily at 7:00 AM EST, or
             navigate to a specific tab to upload CSVs manually.
           </p>
           <div className="flex justify-center gap-6 text-sm text-gray-400">
