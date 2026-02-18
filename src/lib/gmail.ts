@@ -48,9 +48,11 @@ export async function fetchTodaysCsvEmails(): Promise<{
   const errors: string[] = [];
   const attachments: CsvAttachment[] = [];
 
-  // Search for emails from sender, received today, with attachments
-  const today = new Date();
-  const dateStr = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, "0")}/${String(today.getDate()).padStart(2, "0")}`;
+  // Search for emails from sender, received in the last 2 days, with attachments
+  // Using 2-day window to avoid missing emails that arrive late or timezone issues
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+  const dateStr = `${twoDaysAgo.getFullYear()}/${String(twoDaysAgo.getMonth() + 1).padStart(2, "0")}/${String(twoDaysAgo.getDate()).padStart(2, "0")}`;
 
   const query = `from:${SENDER_EMAIL} after:${dateStr} has:attachment filename:csv`;
 
@@ -64,8 +66,11 @@ export async function fetchTodaysCsvEmails(): Promise<{
     const messages = listResponse.data.messages || [];
 
     if (messages.length === 0) {
-      return { attachments: [], emailsProcessed: 0, errors: ["No emails found from sender today"] };
+      return { attachments: [], emailsProcessed: 0, errors: ["No emails found from sender in the last 2 days"] };
     }
+
+    // Track which types we've already found (most recent email first from Gmail)
+    const foundTypes = new Set<string>();
 
     for (const msg of messages) {
       try {
@@ -88,6 +93,11 @@ export async function fetchTodaysCsvEmails(): Promise<{
               continue;
             }
 
+            // Skip if we already have a more recent version of this type
+            if (foundTypes.has(csvType)) {
+              continue;
+            }
+
             // Download attachment
             const attachment = await gmail.users.messages.attachments.get({
               userId: "me",
@@ -107,6 +117,7 @@ export async function fetchTodaysCsvEmails(): Promise<{
                 filename: part.filename,
                 data: csvText,
               });
+              foundTypes.add(csvType);
             }
           }
         }
