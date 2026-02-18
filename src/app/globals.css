@@ -45,3 +45,31 @@ body {
   background: #94a3b8;
   border-radius: 3px;
 }
+
+/* Mobile responsive tables - allow horizontal scroll */
+@media (max-width: 640px) {
+  table {
+    font-size: 0.75rem;
+  }
+  th, td {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+  /* Touch-friendly tappable areas */
+  select, input[type="file"], button {
+    min-height: 40px;
+  }
+  /* Cards with less padding on mobile */
+  .shadow {
+    border-radius: 0.5rem;
+  }
+}
+
+/* Prevent zoom on input focus on iOS */
+@media (max-width: 640px) {
+  input[type="text"],
+  input[type="date"],
+  select {
+    font-size: 16px;
+  }
+}

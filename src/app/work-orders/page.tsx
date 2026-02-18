@@ -236,11 +236,11 @@ export default function WorkOrdersPage() {
   return (
     <div>
       {/* Upload & Filters */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-3 text-[#1a3a5f]">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-3 text-[#1a3a5f]">
           Work Order Metrics
         </h2>
-        <div className="flex flex-wrap items-center gap-4 mb-3">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4 mb-3">
           <input
             type="file"
             accept=".csv"
@@ -331,8 +331,8 @@ export default function WorkOrdersPage() {
           </div>
 
           {/* Technician Summary */}
-          <div className="bg-white rounded-lg shadow p-5 mb-6">
-            <h3 className="font-semibold text-[#1a3a5f] mb-3">
+          <div className="bg-white rounded-lg shadow p-3 sm:p-5 mb-4 sm:mb-6">
+            <h3 className="font-semibold text-[#1a3a5f] mb-3 text-sm sm:text-base">
               Technician Summary
             </h3>
             <div className="overflow-x-auto">
@@ -395,7 +395,7 @@ export default function WorkOrdersPage() {
           </div>
 
           {/* Work Orders Table */}
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-white rounded-lg shadow p-3 sm:p-5">
             <h3 className="font-semibold text-[#1a3a5f] mb-3">
               Work Orders
               <span className="text-xs text-gray-400 font-normal ml-2">

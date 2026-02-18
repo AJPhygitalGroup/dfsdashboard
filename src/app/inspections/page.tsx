@@ -86,11 +86,11 @@ export default function InspectionsPage() {
   return (
     <div>
       {/* Upload */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-3 text-[#1a3a5f]">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-3 text-[#1a3a5f]">
           Inspection Metrics
         </h2>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
           <input
             type="file"
             accept=".csv"

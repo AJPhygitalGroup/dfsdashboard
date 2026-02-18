@@ -55,34 +55,38 @@ export default function DateRangeFilter({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <label className="text-xs text-gray-500 font-medium">Date Range:</label>
-      <input
-        type="date"
-        value={fromDate}
-        onChange={(e) => setFromDate(e.target.value)}
-        className="border rounded p-1.5 text-sm"
-      />
-      <span className="text-gray-400 text-xs">to</span>
-      <input
-        type="date"
-        value={toDate}
-        onChange={(e) => setToDate(e.target.value)}
-        className="border rounded p-1.5 text-sm"
-      />
-      <button
-        onClick={handleApply}
-        className="bg-[#1a3a5f] text-white text-xs px-3 py-1.5 rounded hover:bg-[#0f2a4a] transition-colors"
-      >
-        Apply
-      </button>
-      {(fromDate || toDate) && (
+      <label className="text-xs text-gray-500 font-medium w-full sm:w-auto">Date Range:</label>
+      <div className="flex items-center gap-2 w-full sm:w-auto">
+        <input
+          type="date"
+          value={fromDate}
+          onChange={(e) => setFromDate(e.target.value)}
+          className="border rounded p-1.5 text-sm flex-1 sm:flex-none min-w-0"
+        />
+        <span className="text-gray-400 text-xs shrink-0">to</span>
+        <input
+          type="date"
+          value={toDate}
+          onChange={(e) => setToDate(e.target.value)}
+          className="border rounded p-1.5 text-sm flex-1 sm:flex-none min-w-0"
+        />
+      </div>
+      <div className="flex gap-2">
         <button
-          onClick={handleClear}
-          className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1.5 rounded border"
+          onClick={handleApply}
+          className="bg-[#1a3a5f] text-white text-xs px-3 py-1.5 rounded hover:bg-[#0f2a4a] transition-colors"
         >
-          Clear
+          Apply
         </button>
-      )}
+        {(fromDate || toDate) && (
+          <button
+            onClick={handleClear}
+            className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1.5 rounded border"
+          >
+            Clear
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -309,8 +309,8 @@ export default function DefectsPage() {
   return (
     <div>
       {/* Upload */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-3 text-[#1a3a5f]">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-3 text-[#1a3a5f]">
           Defect Metrics
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
@@ -394,9 +394,9 @@ export default function DefectsPage() {
           </div>
 
           {/* NOT ADDRESSED - Full Detail Table */}
-          <div className="bg-white rounded-lg shadow p-5 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-amber-600">
+          <div className="bg-white rounded-lg shadow p-3 sm:p-5 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+              <h3 className="font-semibold text-amber-600 text-sm sm:text-base">
                 Defects Not Addressed
                 <span className="text-xs text-gray-400 font-normal ml-2">
                   ({filteredNotAddressedCount} defects on {filteredNotAddressedList.length} entries
@@ -416,7 +416,7 @@ export default function DefectsPage() {
                     Filter Defects ({selectedDefectTypes.size}/{uniqueDefectTypes.length})
                   </button>
                   {defectFilterOpen && (
-                    <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg w-[400px] max-h-[400px] flex flex-col">
+                    <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg w-[calc(100vw-2rem)] sm:w-[400px] max-h-[60vh] sm:max-h-[400px] flex flex-col">
                       {/* Search */}
                       <div className="p-2 border-b">
                         <input
