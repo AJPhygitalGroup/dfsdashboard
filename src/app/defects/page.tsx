@@ -47,6 +47,9 @@ export default function DefectsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showNotAddressed, setShowNotAddressed] = useState(false);
+  const [selectedDefectTypes, setSelectedDefectTypes] = useState<Set<string>>(new Set());
+  const [defectFilterOpen, setDefectFilterOpen] = useState(false);
+  const [defectSearch, setDefectSearch] = useState("");
 
   // Parse defects from blob/upload raw data
   useEffect(() => {
@@ -213,6 +216,24 @@ export default function DefectsPage() {
     return results.sort((a, b) => b.count - a.count);
   }, [vehicleDefects, filteredDefects]);
 
+  // Unique defect descriptions for the filter (sorted by frequency)
+  const uniqueDefectTypes = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredDefects.forEach((d) => {
+      map[d.defectDescription] = (map[d.defectDescription] || 0) + 1;
+    });
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .map(([desc, count]) => ({ description: desc, count }));
+  }, [filteredDefects]);
+
+  // Initialize selectedDefectTypes with all when data first loads
+  useEffect(() => {
+    if (uniqueDefectTypes.length > 0 && selectedDefectTypes.size === 0) {
+      setSelectedDefectTypes(new Set(uniqueDefectTypes.map((d) => d.description)));
+    }
+  }, [uniqueDefectTypes]);
+
   // Not-addressed defects: full detail list grouped by org > vehicle > defect
   const notAddressedList = useMemo(() => {
     // Group: org → vehicle → defect → count + reporters
@@ -267,6 +288,19 @@ export default function DefectsPage() {
 
     return rows.sort((a, b) => b.count - a.count);
   }, [filteredDefects]);
+
+  // Apply defect type filter to the not-addressed list
+  const filteredNotAddressedList = useMemo(() => {
+    if (selectedDefectTypes.size === 0 || selectedDefectTypes.size === uniqueDefectTypes.length) {
+      return notAddressedList;
+    }
+    return notAddressedList.filter((row) => selectedDefectTypes.has(row.defect));
+  }, [notAddressedList, selectedDefectTypes, uniqueDefectTypes.length]);
+
+  // Count for the filtered view
+  const filteredNotAddressedCount = useMemo(() => {
+    return filteredNotAddressedList.reduce((sum, row) => sum + row.count, 0);
+  }, [filteredNotAddressedList]);
 
   const excludedByWO = dateFilteredDefects.filter((d) =>
     woSet.has(`${d.vehicleFleetId}|||${d.defectDescription}`)
@@ -365,15 +399,105 @@ export default function DefectsPage() {
               <h3 className="font-semibold text-amber-600">
                 Defects Not Addressed
                 <span className="text-xs text-gray-400 font-normal ml-2">
-                  ({filteredDefects.length} defects on {vehicleDefects.length} vehicles)
+                  ({filteredNotAddressedCount} defects on {filteredNotAddressedList.length} entries
+                  {selectedDefectTypes.size < uniqueDefectTypes.length && ` \u2014 filtered`})
                 </span>
               </h3>
-              <button
-                onClick={() => setShowNotAddressed(!showNotAddressed)}
-                className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded hover:bg-amber-100 transition-colors"
-              >
-                {showNotAddressed ? "Hide Details" : "Show All Details"}
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <button
+                    onClick={() => setDefectFilterOpen(!defectFilterOpen)}
+                    className={`text-xs px-3 py-1.5 rounded border transition-colors ${
+                      selectedDefectTypes.size < uniqueDefectTypes.length
+                        ? "bg-amber-100 text-amber-800 border-amber-300"
+                        : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    Filter Defects ({selectedDefectTypes.size}/{uniqueDefectTypes.length})
+                  </button>
+                  {defectFilterOpen && (
+                    <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg w-[400px] max-h-[400px] flex flex-col">
+                      {/* Search */}
+                      <div className="p-2 border-b">
+                        <input
+                          type="text"
+                          placeholder="Search defects..."
+                          value={defectSearch}
+                          onChange={(e) => setDefectSearch(e.target.value)}
+                          className="w-full border rounded p-1.5 text-xs"
+                        />
+                      </div>
+                      {/* Select all / none */}
+                      <div className="flex items-center gap-2 px-3 py-2 border-b bg-gray-50">
+                        <button
+                          onClick={() => setSelectedDefectTypes(new Set(uniqueDefectTypes.map((d) => d.description)))}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          Select All
+                        </button>
+                        <span className="text-gray-300">|</span>
+                        <button
+                          onClick={() => setSelectedDefectTypes(new Set())}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                      {/* Checkbox list */}
+                      <div className="overflow-y-auto flex-1 p-1">
+                        {uniqueDefectTypes
+                          .filter((d) =>
+                            defectSearch
+                              ? d.description.toLowerCase().includes(defectSearch.toLowerCase())
+                              : true
+                          )
+                          .map((d) => (
+                            <label
+                              key={d.description}
+                              className="flex items-start gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedDefectTypes.has(d.description)}
+                                onChange={() => {
+                                  const next = new Set(selectedDefectTypes);
+                                  if (next.has(d.description)) {
+                                    next.delete(d.description);
+                                  } else {
+                                    next.add(d.description);
+                                  }
+                                  setSelectedDefectTypes(next);
+                                }}
+                                className="mt-0.5 rounded"
+                              />
+                              <span className="text-xs text-gray-700 leading-tight flex-1">
+                                {d.description}
+                              </span>
+                              <span className="text-xs text-gray-400 shrink-0">
+                                {d.count}x
+                              </span>
+                            </label>
+                          ))}
+                      </div>
+                      {/* Close */}
+                      <div className="p-2 border-t bg-gray-50 flex justify-end">
+                        <button
+                          onClick={() => { setDefectFilterOpen(false); setDefectSearch(""); }}
+                          className="text-xs bg-[#1a3a5f] text-white px-3 py-1.5 rounded hover:bg-[#0f2a4a]"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowNotAddressed(!showNotAddressed)}
+                  className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded hover:bg-amber-100 transition-colors"
+                >
+                  {showNotAddressed ? "Hide Details" : "Show All Details"}
+                </button>
+              </div>
             </div>
 
             {showNotAddressed && (
@@ -390,7 +514,7 @@ export default function DefectsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {notAddressedList.map((row, i) => (
+                    {filteredNotAddressedList.map((row, i) => (
                       <tr
                         key={i}
                         className="border-b last:border-0 hover:bg-amber-50"
@@ -435,6 +559,13 @@ export default function DefectsPage() {
                         </td>
                       </tr>
                     ))}
+                    {filteredNotAddressedList.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-6 text-center text-gray-400 text-sm">
+                          No defects match the current filter. Adjust the defect filter above.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
