@@ -59,6 +59,35 @@ function timeInStatus(wo: WORow): string {
   }
 }
 
+/** Returns time in status as milliseconds for sorting */
+function timeInStatusMs(wo: WORow): number {
+  const status = getStatus(wo);
+  const now = Date.now();
+
+  let from = "";
+  let to = "";
+  switch (status) {
+    case "Completed":
+      from = wo.workOrderCreatedAt;
+      to = wo.workOrderCompletedAt;
+      break;
+    case "Accepted":
+      from = wo.technicianResponseAt;
+      to = new Date(now).toISOString();
+      break;
+    case "Pending":
+      from = wo.workOrderCreatedAt;
+      to = new Date(now).toISOString();
+      break;
+  }
+  if (!from || !to) return 0;
+  const diff = new Date(to).getTime() - new Date(from).getTime();
+  return isNaN(diff) || diff < 0 ? 0 : diff;
+}
+
+type SortColumn = "dsp" | "time" | "created" | "status" | "none";
+type SortDir = "asc" | "desc";
+
 /** Parse a date string to YYYY-MM-DD for comparison */
 function toDateKey(dateStr: string): string {
   if (!dateStr) return "";
@@ -82,6 +111,8 @@ export default function WorkOrdersPage() {
   const [filterTech, setFilterTech] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [sortCol, setSortCol] = useState<SortColumn>("none");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const data: WORow[] = useMemo(() => {
     return rawData.map((r) => ({
@@ -154,6 +185,53 @@ export default function WorkOrdersPage() {
     });
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [filtered]);
+
+  // Sortable table data
+  const sorted = useMemo(() => {
+    if (sortCol === "none") return filtered;
+    const arr = [...filtered];
+    const dir = sortDir === "asc" ? 1 : -1;
+
+    arr.sort((a, b) => {
+      switch (sortCol) {
+        case "dsp": {
+          const cmp = a.dspName.localeCompare(b.dspName);
+          if (cmp !== 0) return cmp * dir;
+          // Secondary: fleet ID ascending
+          return a.vehicleFleetId.localeCompare(b.vehicleFleetId);
+        }
+        case "time":
+          return (timeInStatusMs(a) - timeInStatusMs(b)) * dir;
+        case "created": {
+          const da = new Date(a.workOrderCreatedAt || a.defectReportedAt).getTime() || 0;
+          const db = new Date(b.workOrderCreatedAt || b.defectReportedAt).getTime() || 0;
+          return (da - db) * dir;
+        }
+        case "status": {
+          const order: Record<WOStatus, number> = { Pending: 0, Accepted: 1, Completed: 2 };
+          return (order[getStatus(a)] - order[getStatus(b)]) * dir;
+        }
+        default:
+          return 0;
+      }
+    });
+    return arr;
+  }, [filtered, sortCol, sortDir]);
+
+  function handleSort(col: SortColumn) {
+    if (sortCol === col) {
+      // Toggle direction, or reset if already toggled both ways
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortCol(col);
+      setSortDir(col === "time" ? "desc" : "asc"); // time defaults desc (oldest first = most stale)
+    }
+  }
+
+  function sortIcon(col: SortColumn) {
+    if (sortCol !== col) return " \u2195"; // ↕
+    return sortDir === "asc" ? " \u2191" : " \u2193"; // ↑ or ↓
+  }
 
   return (
     <div>
@@ -328,17 +406,37 @@ export default function WorkOrdersPage() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-white">
                   <tr className="border-b text-left text-gray-500">
-                    <th className="pb-2 pr-3">DSP</th>
+                    <th
+                      className="pb-2 pr-3 cursor-pointer hover:text-[#1a3a5f] select-none"
+                      onClick={() => handleSort("dsp")}
+                    >
+                      DSP{sortIcon("dsp")}
+                    </th>
                     <th className="pb-2 pr-3">Vehicle</th>
                     <th className="pb-2 pr-3">Defect</th>
                     <th className="pb-2 pr-3">Technician</th>
-                    <th className="pb-2 pr-3">Status</th>
-                    <th className="pb-2 pr-3">Time in Status</th>
-                    <th className="pb-2 pr-3 text-xs">Created</th>
+                    <th
+                      className="pb-2 pr-3 cursor-pointer hover:text-[#1a3a5f] select-none"
+                      onClick={() => handleSort("status")}
+                    >
+                      Status{sortIcon("status")}
+                    </th>
+                    <th
+                      className="pb-2 pr-3 cursor-pointer hover:text-[#1a3a5f] select-none"
+                      onClick={() => handleSort("time")}
+                    >
+                      Time in Status{sortIcon("time")}
+                    </th>
+                    <th
+                      className="pb-2 pr-3 text-xs cursor-pointer hover:text-[#1a3a5f] select-none"
+                      onClick={() => handleSort("created")}
+                    >
+                      Created{sortIcon("created")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((wo, i) => {
+                  {sorted.map((wo, i) => {
                     const status = getStatus(wo);
                     return (
                       <tr
