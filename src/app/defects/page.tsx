@@ -416,79 +416,87 @@ export default function DefectsPage() {
                     Filter Defects ({selectedDefectTypes.size}/{uniqueDefectTypes.length})
                   </button>
                   {defectFilterOpen && (
-                    <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg w-[calc(100vw-2rem)] sm:w-[400px] max-h-[60vh] sm:max-h-[400px] flex flex-col">
-                      {/* Search */}
-                      <div className="p-2 border-b">
-                        <input
-                          type="text"
-                          placeholder="Search defects..."
-                          value={defectSearch}
-                          onChange={(e) => setDefectSearch(e.target.value)}
-                          className="w-full border rounded p-1.5 text-xs"
-                        />
+                    <>
+                      {/* Mobile: backdrop overlay */}
+                      <div
+                        className="sm:hidden fixed inset-0 bg-black/30 z-40"
+                        onClick={() => { setDefectFilterOpen(false); setDefectSearch(""); }}
+                      />
+                      {/* Dropdown panel: fixed centered on mobile, absolute on desktop */}
+                      <div className="fixed inset-x-3 top-[15vh] z-50 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-1 bg-white border border-gray-200 rounded-lg shadow-lg sm:w-[400px] max-h-[70vh] sm:max-h-[400px] flex flex-col">
+                        {/* Search */}
+                        <div className="p-2 border-b">
+                          <input
+                            type="text"
+                            placeholder="Search defects..."
+                            value={defectSearch}
+                            onChange={(e) => setDefectSearch(e.target.value)}
+                            className="w-full border rounded p-1.5 text-xs"
+                          />
+                        </div>
+                        {/* Select all / none */}
+                        <div className="flex items-center gap-2 px-3 py-2 border-b bg-gray-50">
+                          <button
+                            onClick={() => setSelectedDefectTypes(new Set(uniqueDefectTypes.map((d) => d.description)))}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            Select All
+                          </button>
+                          <span className="text-gray-300">|</span>
+                          <button
+                            onClick={() => setSelectedDefectTypes(new Set())}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            Clear All
+                          </button>
+                        </div>
+                        {/* Checkbox list */}
+                        <div className="overflow-y-auto flex-1 p-1">
+                          {uniqueDefectTypes
+                            .filter((d) =>
+                              defectSearch
+                                ? d.description.toLowerCase().includes(defectSearch.toLowerCase())
+                                : true
+                            )
+                            .map((d) => (
+                              <label
+                                key={d.description}
+                                className="flex items-start gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedDefectTypes.has(d.description)}
+                                  onChange={() => {
+                                    const next = new Set(selectedDefectTypes);
+                                    if (next.has(d.description)) {
+                                      next.delete(d.description);
+                                    } else {
+                                      next.add(d.description);
+                                    }
+                                    setSelectedDefectTypes(next);
+                                  }}
+                                  className="mt-0.5 rounded"
+                                />
+                                <span className="text-xs text-gray-700 leading-tight flex-1">
+                                  {d.description}
+                                </span>
+                                <span className="text-xs text-gray-400 shrink-0">
+                                  {d.count}x
+                                </span>
+                              </label>
+                            ))}
+                        </div>
+                        {/* Close */}
+                        <div className="p-2 border-t bg-gray-50 flex justify-end">
+                          <button
+                            onClick={() => { setDefectFilterOpen(false); setDefectSearch(""); }}
+                            className="text-xs bg-[#1a3a5f] text-white px-3 py-1.5 rounded hover:bg-[#0f2a4a]"
+                          >
+                            Done
+                          </button>
+                        </div>
                       </div>
-                      {/* Select all / none */}
-                      <div className="flex items-center gap-2 px-3 py-2 border-b bg-gray-50">
-                        <button
-                          onClick={() => setSelectedDefectTypes(new Set(uniqueDefectTypes.map((d) => d.description)))}
-                          className="text-xs text-blue-600 hover:underline"
-                        >
-                          Select All
-                        </button>
-                        <span className="text-gray-300">|</span>
-                        <button
-                          onClick={() => setSelectedDefectTypes(new Set())}
-                          className="text-xs text-blue-600 hover:underline"
-                        >
-                          Clear All
-                        </button>
-                      </div>
-                      {/* Checkbox list */}
-                      <div className="overflow-y-auto flex-1 p-1">
-                        {uniqueDefectTypes
-                          .filter((d) =>
-                            defectSearch
-                              ? d.description.toLowerCase().includes(defectSearch.toLowerCase())
-                              : true
-                          )
-                          .map((d) => (
-                            <label
-                              key={d.description}
-                              className="flex items-start gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedDefectTypes.has(d.description)}
-                                onChange={() => {
-                                  const next = new Set(selectedDefectTypes);
-                                  if (next.has(d.description)) {
-                                    next.delete(d.description);
-                                  } else {
-                                    next.add(d.description);
-                                  }
-                                  setSelectedDefectTypes(next);
-                                }}
-                                className="mt-0.5 rounded"
-                              />
-                              <span className="text-xs text-gray-700 leading-tight flex-1">
-                                {d.description}
-                              </span>
-                              <span className="text-xs text-gray-400 shrink-0">
-                                {d.count}x
-                              </span>
-                            </label>
-                          ))}
-                      </div>
-                      {/* Close */}
-                      <div className="p-2 border-t bg-gray-50 flex justify-end">
-                        <button
-                          onClick={() => { setDefectFilterOpen(false); setDefectSearch(""); }}
-                          className="text-xs bg-[#1a3a5f] text-white px-3 py-1.5 rounded hover:bg-[#0f2a4a]"
-                        >
-                          Done
-                        </button>
-                      </div>
-                    </div>
+                    </>
                   )}
                 </div>
                 <button
