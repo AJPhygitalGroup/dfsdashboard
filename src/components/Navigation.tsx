@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 
 const tabs = [
   { href: "/", label: "Overview", icon: "📊" },
@@ -12,6 +13,10 @@ const tabs = [
 
 export default function Navigation() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+
+  // Don't show navigation on login page
+  if (pathname === "/login") return null;
 
   return (
     <header className="bg-[#1a3a5f] text-white shadow-lg">
@@ -22,7 +27,7 @@ export default function Navigation() {
             DFS Fleet Metrics
           </h1>
           {/* Desktop nav */}
-          <nav className="hidden sm:flex gap-1">
+          <nav className="hidden sm:flex gap-1 items-center">
             {tabs.map((tab) => {
               const isActive =
                 tab.href === "/"
@@ -43,6 +48,14 @@ export default function Navigation() {
                 </Link>
               );
             })}
+            {session && (
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="ml-2 px-3 py-2 rounded-md text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                Sign Out
+              </button>
+            )}
           </nav>
         </div>
       </div>

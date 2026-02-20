@@ -7,9 +7,11 @@ import {
 import { setDashboardData, getDashboardData } from "@/lib/store";
 
 // API key for the email agent (set in Vercel env vars)
-const API_KEY = process.env.UPLOAD_API_KEY || "dfs-metrics-key-2026";
+const API_KEY = process.env.UPLOAD_API_KEY;
 
 function validateApiKey(request: NextRequest): boolean {
+  // Fail closed: if env var is not configured, deny all access
+  if (!API_KEY) return false;
   const authHeader = request.headers.get("authorization");
   if (!authHeader) return false;
   const token = authHeader.replace("Bearer ", "");
