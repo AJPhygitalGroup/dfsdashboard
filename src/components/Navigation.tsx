@@ -67,14 +67,17 @@ export default function Navigation() {
             {/* User info + Sign out */}
             {user && (
               <div className="flex items-center gap-3 ml-4 pl-4 border-l border-white/20">
-                <span className="text-sm text-white/70 truncate max-w-[120px]">
+                <span className="text-sm text-white/80 truncate max-w-[150px]">
                   {user.name}
+                  {user.dsp && (
+                    <span className="text-white/50 ml-1 text-xs">({user.dsp})</span>
+                  )}
                 </span>
                 <button
                   onClick={logout}
-                  className="text-xs text-white/50 hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10"
+                  className="text-xs text-white font-medium bg-white/20 hover:bg-red-500 transition-colors px-3 py-1.5 rounded-md"
                 >
-                  Sign out
+                  Sign Out
                 </button>
               </div>
             )}
@@ -83,14 +86,14 @@ export default function Navigation() {
           {/* Mobile: user name + sign out */}
           {user && (
             <div className="sm:hidden flex items-center gap-2">
-              <span className="text-xs text-white/70 truncate max-w-[80px]">
+              <span className="text-xs text-white/80 truncate max-w-[100px]">
                 {user.name}
               </span>
               <button
                 onClick={logout}
-                className="text-[10px] text-white/50 hover:text-white/90 px-1.5 py-0.5 rounded bg-white/10"
+                className="text-xs text-white font-medium bg-white/20 hover:bg-red-500 transition-colors px-2.5 py-1 rounded-md"
               >
-                Exit
+                Sign Out
               </button>
             </div>
           )}
