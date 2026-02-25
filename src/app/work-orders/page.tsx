@@ -5,6 +5,7 @@ import StatCard from "@/components/StatCard";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import SyncBanner from "@/components/SyncBanner";
 import { useBlobCsv } from "@/lib/use-blob-csv";
+import { useAuth } from "@/components/AuthProvider";
 
 interface WORow {
   dspName: string;
@@ -108,6 +109,7 @@ const statusColors: Record<WOStatus, string> = {
 
 export default function WorkOrdersPage() {
   const { rawData, loading, source, syncInfo, handleFileUpload } = useBlobCsv("work_orders");
+  const { user } = useAuth();
   const [filterStatus, setFilterStatus] = useState<WOStatus | "all">("all");
   const [filterTech, setFilterTech] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -116,7 +118,7 @@ export default function WorkOrdersPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const data: WORow[] = useMemo(() => {
-    return rawData.map((r) => ({
+    const parsed = rawData.map((r) => ({
       dspName: r["DSP Name"] || "",
       vehicleFleetId: r["Vehicle Fleet ID"] || "",
       defectDescription: r["Defect Description"] || "",
@@ -128,7 +130,10 @@ export default function WorkOrdersPage() {
       workOrderAccepted: toBool(r["Work Order Accepted"]),
       workOrderCompletedAt: r["Work Order Completed At (EST)"] || "",
     }));
-  }, [rawData]);
+    // Filter by user's DSP if restricted
+    if (user?.dsp) return parsed.filter((r) => r.dspName === user.dsp);
+    return parsed;
+  }, [rawData, user?.dsp]);
 
   // All dates for the filter auto-detect
   const allDates = useMemo(

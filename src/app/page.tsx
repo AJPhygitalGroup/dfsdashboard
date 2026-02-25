@@ -5,6 +5,7 @@ import Link from "next/link";
 import StatCard from "@/components/StatCard";
 import { useBlobCsv } from "@/lib/use-blob-csv";
 import SyncBanner from "@/components/SyncBanner";
+import { useAuth } from "@/components/AuthProvider";
 
 function toBool(v: string | undefined | null): boolean {
   if (!v) return false;
@@ -15,28 +16,45 @@ export default function OverviewPage() {
   const { rawData: inspRaw, loading: loadingInsp, source: inspSource, syncInfo } = useBlobCsv("inspections");
   const { rawData: defRaw, loading: loadingDef } = useBlobCsv("defects");
   const { rawData: woRaw, loading: loadingWO } = useBlobCsv("work_orders");
+  const { user } = useAuth();
 
   const loading = loadingInsp || loadingDef || loadingWO;
   const autoLoaded = inspSource === "blob";
 
-  const inspCount = inspRaw.length;
-  const defCount = defRaw.length;
-  const woCount = woRaw.length;
+  // Filter by user's DSP if assigned
+  const filteredInsp = useMemo(() => {
+    if (!user?.dsp) return inspRaw;
+    return inspRaw.filter((r) => r["DSP Name"] === user.dsp);
+  }, [inspRaw, user?.dsp]);
+
+  const filteredDef = useMemo(() => {
+    if (!user?.dsp) return defRaw;
+    return defRaw.filter((r) => r["Organization Name"] === user.dsp);
+  }, [defRaw, user?.dsp]);
+
+  const filteredWO = useMemo(() => {
+    if (!user?.dsp) return woRaw;
+    return woRaw.filter((r) => r["DSP Name"] === user.dsp);
+  }, [woRaw, user?.dsp]);
+
+  const inspCount = filteredInsp.length;
+  const defCount = filteredDef.length;
+  const woCount = filteredWO.length;
 
   const completedWO = useMemo(
-    () => woRaw.filter((r) => r["Work Order Completed At (EST)"]).length,
-    [woRaw]
+    () => filteredWO.filter((r) => r["Work Order Completed At (EST)"]).length,
+    [filteredWO]
   );
   const acceptedWO = useMemo(
-    () => woRaw.filter((r) => toBool(r["Work Order Accepted"])).length,
-    [woRaw]
+    () => filteredWO.filter((r) => toBool(r["Work Order Accepted"])).length,
+    [filteredWO]
   );
   const pendingWO = useMemo(
     () =>
-      woRaw.filter(
+      filteredWO.filter(
         (r) => !toBool(r["Work Order Accepted"]) && !r["Work Order Completed At (EST)"]
       ).length,
-    [woRaw]
+    [filteredWO]
   );
 
   const hasData = inspCount > 0 || defCount > 0 || woCount > 0;

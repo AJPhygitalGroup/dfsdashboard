@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import StatCard from "@/components/StatCard";
 import SyncBanner from "@/components/SyncBanner";
 import { useBlobCsv } from "@/lib/use-blob-csv";
+import { useAuth } from "@/components/AuthProvider";
 
 interface InspectionRow {
   dspName: string;
@@ -28,7 +29,13 @@ function formatDur(seconds: number): string {
 
 export default function InspectionsPage() {
   const { rawData, loading, source, syncInfo, handleFileUpload } = useBlobCsv("inspections");
+  const { user } = useAuth();
   const [selectedDsp, setSelectedDsp] = useState<string>("all");
+
+  // Auto-set DSP filter if user is restricted to a DSP
+  useEffect(() => {
+    if (user?.dsp) setSelectedDsp(user.dsp);
+  }, [user?.dsp]);
 
   const data: InspectionRow[] = useMemo(() => {
     return rawData.map((r) => {
@@ -106,8 +113,9 @@ export default function InspectionsPage() {
               value={selectedDsp}
               onChange={(e) => setSelectedDsp(e.target.value)}
               className="border rounded p-2 text-sm"
+              disabled={!!user?.dsp}
             >
-              <option value="all">All DSPs</option>
+              {!user?.dsp && <option value="all">All DSPs</option>}
               {dspNames.map((name) => (
                 <option key={name} value={name}>
                   {name}

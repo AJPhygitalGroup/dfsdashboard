@@ -6,6 +6,7 @@ import DateRangeFilter from "@/components/DateRangeFilter";
 import { EXCLUDED_DEFECTS } from "@/lib/excluded-defects";
 import SyncBanner from "@/components/SyncBanner";
 import { useBlobCsv } from "@/lib/use-blob-csv";
+import { useAuth } from "@/components/AuthProvider";
 
 interface DefectRow {
   defectReportedAt: string;
@@ -42,6 +43,7 @@ function toDateKey(dateStr: string): string {
 export default function DefectsPage() {
   const { rawData: defectsRaw, loading: loadingDefects, source: defectsSource, syncInfo, handleFileUpload: handleDefectsUpload } = useBlobCsv("defects");
   const { rawData: woRaw, loading: loadingWO, handleFileUpload: handleWOUpload } = useBlobCsv("work_orders");
+  const { user } = useAuth();
 
   const [defects, setDefects] = useState<DefectRow[]>([]);
   const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
@@ -52,23 +54,22 @@ export default function DefectsPage() {
   const [defectFilterOpen, setDefectFilterOpen] = useState(false);
   const [defectSearch, setDefectSearch] = useState("");
 
-  // Parse defects from blob/upload raw data
+  // Parse defects from blob/upload raw data, filter by DSP if user is restricted
   useEffect(() => {
     if (defectsRaw.length > 0) {
-      setDefects(
-        defectsRaw.map((r) => ({
-          defectReportedAt: r["Defect Reported At"] || "",
-          organizationName: r["Organization Name"] || "",
-          vehicleFleetId: r["Vehicle Fleet ID"] || "",
-          defectDescription: r["Defect Description"] || "",
-          reportedBy: r["Reported By"] || "",
-          defectWorkApproved: toBool(r["Defect Work Approved"]),
-          defectWorkAccepted: toBool(r["Defect Work Accepted"]),
-          defectWorkCompleted: toBool(r["Defect Work Completed"]),
-        }))
-      );
+      const parsed = defectsRaw.map((r) => ({
+        defectReportedAt: r["Defect Reported At"] || "",
+        organizationName: r["Organization Name"] || "",
+        vehicleFleetId: r["Vehicle Fleet ID"] || "",
+        defectDescription: r["Defect Description"] || "",
+        reportedBy: r["Reported By"] || "",
+        defectWorkApproved: toBool(r["Defect Work Approved"]),
+        defectWorkAccepted: toBool(r["Defect Work Accepted"]),
+        defectWorkCompleted: toBool(r["Defect Work Completed"]),
+      }));
+      setDefects(user?.dsp ? parsed.filter((d) => d.organizationName === user.dsp) : parsed);
     }
-  }, [defectsRaw]);
+  }, [defectsRaw, user?.dsp]);
 
   // Parse work orders from blob/upload raw data
   useEffect(() => {
