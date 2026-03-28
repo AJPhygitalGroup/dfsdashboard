@@ -42,6 +42,30 @@ export async function getAllCsvUrls(): Promise<
   return result as Record<CsvType, string | null>;
 }
 
+/** Save CSV to Blob with a unique timestamped path (no overwrite) */
+export async function saveCsvToBlobVersioned(
+  type: CsvType,
+  csvText: string,
+  originalFilename: string
+): Promise<{ url: string; sizeBytes: number }> {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const path = `${BLOB_PREFIX}${type}/${timestamp}.csv`;
+  const blob = await put(path, csvText, {
+    access: "public",
+    contentType: "text/csv",
+    addRandomSuffix: false,
+    allowOverwrite: false,
+  });
+  return { url: blob.url, sizeBytes: csvText.length };
+}
+
+/** Fetch CSV content from a Blob URL */
+export async function fetchCsvContent(blobUrl: string): Promise<string> {
+  const response = await fetch(blobUrl);
+  if (!response.ok) throw new Error(`Failed to fetch blob: ${response.status}`);
+  return response.text();
+}
+
 /** Save sync metadata (timestamp, email count, etc.) */
 export async function saveSyncMetadata(metadata: {
   timestamp: string;

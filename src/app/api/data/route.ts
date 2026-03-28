@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllCsvUrls, getSyncMetadataUrl } from "@/lib/blob-store";
+import { getSyncMetadataUrl, fetchCsvContent, type CsvType } from "@/lib/blob-store";
+import { getLatestUpload, getUploadById } from "@/lib/csv-uploads";
 
 export const dynamic = "force-dynamic";
 
+const VALID_TYPES: CsvType[] = ["inspections", "defects", "work_orders"];
+
 export async function GET(request: NextRequest) {
   const type = request.nextUrl.searchParams.get("type");
+  const id = request.nextUrl.searchParams.get("id");
 
   try {
     // Return sync metadata
@@ -18,32 +22,55 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(json);
     }
 
-    const urls = await getAllCsvUrls();
+    // Serve a specific upload by ID
+    if (id) {
+      const upload = await getUploadById(parseInt(id));
+      if (!upload) {
+        return NextResponse.json({ error: "Upload not found" }, { status: 404 });
+      }
+      const csvText = await fetchCsvContent(upload.blob_url);
+      return new NextResponse(csvText, {
+        headers: {
+          "Content-Type": "text/csv",
+          "X-Upload-Id": String(upload.id),
+          "X-Record-Count": String(upload.record_count),
+          "X-Upload-Source": upload.upload_source,
+          "X-Created-At": upload.created_at,
+          "X-File-Name": upload.file_name,
+        },
+      });
+    }
 
-    if (type && (type === "inspections" || type === "defects" || type === "work_orders")) {
-      const url = urls[type];
-      if (!url) {
+    // Serve latest upload for a given type
+    if (type && VALID_TYPES.includes(type as CsvType)) {
+      const upload = await getLatestUpload(type as CsvType);
+      if (!upload) {
         return NextResponse.json(
           { error: `No ${type} data available yet` },
           { status: 404 }
         );
       }
-      // Fetch the CSV and return it as text
-      const response = await fetch(url);
-      const csvText = await response.text();
+      const csvText = await fetchCsvContent(upload.blob_url);
       return new NextResponse(csvText, {
-        headers: { "Content-Type": "text/csv" },
+        headers: {
+          "Content-Type": "text/csv",
+          "X-Upload-Id": String(upload.id),
+          "X-Record-Count": String(upload.record_count),
+          "X-Upload-Source": upload.upload_source,
+          "X-Created-At": upload.created_at,
+          "X-File-Name": upload.file_name,
+        },
       });
     }
 
-    // Return all available URLs
-    return NextResponse.json({
-      available: {
-        inspections: !!urls.inspections,
-        defects: !!urls.defects,
-        work_orders: !!urls.work_orders,
-      },
-    });
+    // Return availability of each type
+    const available: Record<string, boolean> = {};
+    for (const t of VALID_TYPES) {
+      const latest = await getLatestUpload(t);
+      available[t] = !!latest;
+    }
+
+    return NextResponse.json({ available });
   } catch (error) {
     return NextResponse.json(
       { error: `Failed to fetch data: ${error}` },

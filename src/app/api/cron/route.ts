@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchTodaysCsvEmails } from "@/lib/gmail";
-import { saveCsvToBlob, saveSyncMetadata, type CsvType } from "@/lib/blob-store";
+import { saveCsvToBlobVersioned, saveSyncMetadata, type CsvType } from "@/lib/blob-store";
+import { insertCsvUpload } from "@/lib/csv-uploads";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -36,10 +37,26 @@ export async function GET(request: NextRequest) {
         `[CRON] Saving to Blob: ${attachment.filename} (type: ${attachment.type})`
       );
 
-      const url = await saveCsvToBlob(
+      // Save to Blob with unique path
+      const { url, sizeBytes } = await saveCsvToBlobVersioned(
         attachment.type as CsvType,
-        attachment.data
+        attachment.data,
+        attachment.filename
       );
+
+      // Save metadata to Postgres
+      const recordCount = attachment.data.split("\n").filter((l: string) => l.trim()).length - 1;
+
+      await insertCsvUpload({
+        type: attachment.type as CsvType,
+        blobUrl: url,
+        fileName: attachment.filename,
+        recordCount: Math.max(0, recordCount),
+        uploadedBy: null,
+        uploadSource: "email-sync",
+        fileSizeBytes: sizeBytes,
+      });
+
       savedUrls[attachment.type] = url;
 
       console.log(`[CRON] Saved ${attachment.type} → ${url}`);

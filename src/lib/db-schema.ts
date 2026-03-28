@@ -19,4 +19,27 @@ export async function ensureSchema() {
   await sql`
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
   `;
+
+  // CSV uploads history table
+  await sql`
+    CREATE TABLE IF NOT EXISTS csv_uploads (
+      id SERIAL PRIMARY KEY,
+      type VARCHAR(50) NOT NULL,
+      blob_url TEXT NOT NULL,
+      file_name VARCHAR(255) NOT NULL,
+      record_count INTEGER NOT NULL DEFAULT 0,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      upload_source VARCHAR(50) NOT NULL DEFAULT 'manual',
+      file_size_bytes INTEGER,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_csv_uploads_type ON csv_uploads(type)
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_csv_uploads_type_created ON csv_uploads(type, created_at DESC)
+  `;
 }
