@@ -24,47 +24,54 @@ export function useBlobCsv(type: string, uploadId?: number) {
   const [syncInfo, setSyncInfo] = useState<SyncMetadata | null>(null);
   const [uploadMeta, setUploadMeta] = useState<UploadMeta | null>(null);
 
+  // Load data from server
+  const loadFromServer = async (specificId?: number) => {
+    try {
+      const csvUrl = specificId
+        ? `/api/data?type=${type}&id=${specificId}`
+        : `/api/data?type=${type}`;
+
+      const csvRes = await fetch(csvUrl);
+
+      if (csvRes.ok) {
+        const csvText = await csvRes.text();
+        const result = Papa.parse<Record<string, string>>(csvText, {
+          header: true,
+          skipEmptyLines: true,
+        });
+        if (result.data.length > 0) {
+          setRawData(result.data);
+          setSource("blob");
+        }
+
+        setUploadMeta({
+          id: csvRes.headers.get("X-Upload-Id"),
+          recordCount: csvRes.headers.get("X-Record-Count"),
+          source: csvRes.headers.get("X-Upload-Source"),
+          createdAt: csvRes.headers.get("X-Created-At"),
+          fileName: csvRes.headers.get("X-File-Name"),
+        });
+      }
+    } catch {
+      // Failed to load from server
+    }
+  };
+
   // Auto-load from Blob on mount
   useEffect(() => {
     const loadData = async () => {
       try {
-        const csvUrl = uploadId
-          ? `/api/data?type=${type}&id=${uploadId}`
-          : `/api/data?type=${type}`;
-
-        // Fetch CSV data and sync metadata in parallel
-        const [csvRes, metaRes] = await Promise.all([
-          fetch(csvUrl),
+        const [, metaRes] = await Promise.all([
+          loadFromServer(uploadId),
           fetch(`/api/data?type=sync-metadata`),
         ]);
-
-        if (csvRes.ok) {
-          const csvText = await csvRes.text();
-          const result = Papa.parse<Record<string, string>>(csvText, {
-            header: true,
-            skipEmptyLines: true,
-          });
-          if (result.data.length > 0) {
-            setRawData(result.data);
-            setSource("blob");
-          }
-
-          // Extract upload metadata from headers
-          setUploadMeta({
-            id: csvRes.headers.get("X-Upload-Id"),
-            recordCount: csvRes.headers.get("X-Record-Count"),
-            source: csvRes.headers.get("X-Upload-Source"),
-            createdAt: csvRes.headers.get("X-Created-At"),
-            fileName: csvRes.headers.get("X-File-Name"),
-          });
-        }
 
         if (metaRes.ok) {
           const meta: SyncMetadata = await metaRes.json();
           setSyncInfo(meta);
         }
       } catch {
-        // No blob data available, user can upload manually
+        // No blob data available
       } finally {
         setLoading(false);
       }
@@ -73,7 +80,9 @@ export function useBlobCsv(type: string, uploadId?: number) {
     loadData();
   }, [type, uploadId]);
 
-  const handleFileUpload = (file: File) => {
+  // Upload file to server (persists to Blob + DB), then parse for display
+  const handleFileUpload = async (file: File) => {
+    // Immediately parse for display
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
@@ -82,6 +91,32 @@ export function useBlobCsv(type: string, uploadId?: number) {
         setSource("upload");
       },
     });
+
+    // Upload to server in background to persist
+    try {
+      const formData = new FormData();
+      formData.append("type", type);
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        setUploadMeta({
+          id: String(json.uploadId),
+          recordCount: String(json.recordCount),
+          source: "manual",
+          createdAt: new Date().toISOString(),
+          fileName: file.name,
+        });
+        setSource("blob");
+      }
+    } catch {
+      // Upload to server failed, but local data is still displayed
+    }
   };
 
   return { rawData, loading, source, syncInfo, uploadMeta, handleFileUpload };

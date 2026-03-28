@@ -1,21 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveCsvToBlobVersioned, type CsvType } from "@/lib/blob-store";
 import { insertCsvUpload } from "@/lib/csv-uploads";
+import { verifyToken, AUTH_COOKIE_NAME } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const API_KEY = process.env.UPLOAD_API_KEY || "dfs-metrics-key-2026";
 const VALID_TYPES: CsvType[] = ["inspections", "defects", "work_orders"];
 
-function validateApiKey(request: NextRequest): boolean {
+/** Authenticate via API key OR session cookie. Returns userId if cookie auth, null if API key. */
+async function authenticate(request: NextRequest): Promise<{ authorized: boolean; userId: number | null }> {
+  // Check API key first
   const authHeader = request.headers.get("authorization");
-  if (!authHeader) return false;
-  const token = authHeader.replace("Bearer ", "");
-  return token === API_KEY;
+  if (authHeader) {
+    const token = authHeader.replace("Bearer ", "");
+    if (token === API_KEY) return { authorized: true, userId: null };
+  }
+
+  // Check session cookie
+  const cookie = request.cookies.get(AUTH_COOKIE_NAME);
+  if (cookie?.value) {
+    const payload = await verifyToken(cookie.value);
+    if (payload) return { authorized: true, userId: payload.userId };
+  }
+
+  return { authorized: false, userId: null };
 }
 
 export async function POST(request: NextRequest) {
-  if (!validateApiKey(request)) {
+  const { authorized, userId } = await authenticate(request);
+  if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -55,7 +69,7 @@ export async function POST(request: NextRequest) {
       blobUrl: url,
       fileName: file.name,
       recordCount,
-      uploadedBy: null,
+      uploadedBy: userId,
       uploadSource: "manual",
       fileSizeBytes: sizeBytes,
     });
