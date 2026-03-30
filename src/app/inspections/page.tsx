@@ -3,7 +3,11 @@
 import { useState, useMemo, useEffect } from "react";
 import StatCard from "@/components/StatCard";
 import SyncBanner from "@/components/SyncBanner";
+import CsvUploadZone from "@/components/CsvUploadZone";
+import { PageSkeleton } from "@/components/LoadingSkeleton";
+import EmptyState from "@/components/EmptyState";
 import { useBlobCsv } from "@/lib/use-blob-csv";
+import { useToast } from "@/lib/use-toast";
 import { useAuth } from "@/components/AuthProvider";
 
 interface InspectionRow {
@@ -28,8 +32,9 @@ function formatDur(seconds: number): string {
 }
 
 export default function InspectionsPage() {
-  const { rawData, loading, source, syncInfo, handleFileUpload } = useBlobCsv("inspections");
+  const { rawData, loading, source, syncInfo, uploadState, handleFileUpload } = useBlobCsv("inspections");
   const { user } = useAuth();
+  const { addToast } = useToast();
   const [selectedDsp, setSelectedDsp] = useState<string>("all");
 
   // Auto-set DSP filter if user is restricted to a DSP
@@ -99,15 +104,21 @@ export default function InspectionsPage() {
           Inspection Metrics
         </h2>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleFileUpload(f);
-            }}
-            className="block text-sm border rounded p-2 flex-1"
-          />
+          <div className="flex-1">
+            <CsvUploadZone
+              label="Upload Inspection CSV"
+              uploadState={uploadState}
+              compact
+              onFileSelect={async (f) => {
+                const result = await handleFileUpload(f);
+                if (result.state === "success") {
+                  addToast("success", `Uploaded ${result.recordCount.toLocaleString()} inspection records`);
+                } else if (result.error) {
+                  addToast("error", result.error);
+                }
+              }}
+            />
+          </div>
           {data.length > 0 && (
             <select
               value={selectedDsp}
@@ -130,16 +141,13 @@ export default function InspectionsPage() {
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-gray-500">Loading data...</p>
-        </div>
+        <PageSkeleton statCards={3} />
       ) : data.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-4xl mb-3">🔍</p>
-          <p className="text-gray-500">
-            No inspection data available. Upload a CSV or wait for the daily email sync.
-          </p>
-        </div>
+        <EmptyState
+          icon="\ud83d\udd0d"
+          title="No Inspection Data"
+          description="Upload an inspection CSV above or wait for the daily email sync to populate this dashboard."
+        />
       ) : (
         <>
           {/* Stats */}

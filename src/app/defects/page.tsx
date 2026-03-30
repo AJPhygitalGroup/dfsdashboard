@@ -5,7 +5,11 @@ import StatCard from "@/components/StatCard";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import { EXCLUDED_DEFECTS } from "@/lib/excluded-defects";
 import SyncBanner from "@/components/SyncBanner";
+import CsvUploadZone from "@/components/CsvUploadZone";
+import { PageSkeleton } from "@/components/LoadingSkeleton";
+import EmptyState from "@/components/EmptyState";
 import { useBlobCsv } from "@/lib/use-blob-csv";
+import { useToast } from "@/lib/use-toast";
 import { useAuth } from "@/components/AuthProvider";
 
 interface DefectRow {
@@ -41,9 +45,10 @@ function toDateKey(dateStr: string): string {
 }
 
 export default function DefectsPage() {
-  const { rawData: defectsRaw, loading: loadingDefects, source: defectsSource, syncInfo, handleFileUpload: handleDefectsUpload } = useBlobCsv("defects");
-  const { rawData: woRaw, loading: loadingWO, handleFileUpload: handleWOUpload } = useBlobCsv("work_orders");
+  const { rawData: defectsRaw, loading: loadingDefects, source: defectsSource, syncInfo, uploadState: defectsUploadState, handleFileUpload: handleDefectsUpload } = useBlobCsv("defects");
+  const { rawData: woRaw, loading: loadingWO, uploadState: woUploadState, handleFileUpload: handleWOUpload } = useBlobCsv("work_orders");
   const { user } = useAuth();
+  const { addToast } = useToast();
 
   const [defects, setDefects] = useState<DefectRow[]>([]);
   const [workOrders, setWorkOrders] = useState<WorkOrderRow[]>([]);
@@ -83,14 +88,22 @@ export default function DefectsPage() {
     }
   }, [woRaw]);
 
-  const handleDefectsFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) handleDefectsUpload(f);
+  const onDefectsFile = async (f: File) => {
+    const result = await handleDefectsUpload(f);
+    if (result.state === "success") {
+      addToast("success", `Uploaded ${result.recordCount.toLocaleString()} defect records`);
+    } else if (result.error) {
+      addToast("error", result.error);
+    }
   };
 
-  const handleWorkOrdersFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) handleWOUpload(f);
+  const onWOFile = async (f: File) => {
+    const result = await handleWOUpload(f);
+    if (result.state === "success") {
+      addToast("success", `Uploaded ${result.recordCount.toLocaleString()} work order records`);
+    } else if (result.error) {
+      addToast("error", result.error);
+    }
   };
 
   // All dates for the filter auto-detect
@@ -316,31 +329,19 @@ export default function DefectsPage() {
           Defect Metrics
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Defects CSV
-            </label>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleDefectsFile}
-              className="block w-full text-sm border rounded p-2"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Work Orders CSV{" "}
-              <span className="text-gray-400 font-normal">
-                (for cross-reference)
-              </span>
-            </label>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleWorkOrdersFile}
-              className="block w-full text-sm border rounded p-2"
-            />
-          </div>
+          <CsvUploadZone
+            label="Defects CSV"
+            uploadState={defectsUploadState}
+            compact
+            onFileSelect={onDefectsFile}
+          />
+          <CsvUploadZone
+            label="Work Orders CSV"
+            hint="For cross-reference"
+            uploadState={woUploadState}
+            compact
+            onFileSelect={onWOFile}
+          />
         </div>
         {defects.length > 0 && (
           <DateRangeFilter
@@ -357,16 +358,13 @@ export default function DefectsPage() {
       </div>
 
       {(loadingDefects || loadingWO) ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-gray-500">Loading data...</p>
-        </div>
+        <PageSkeleton statCards={4} />
       ) : defects.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-4xl mb-3">⚠️</p>
-          <p className="text-gray-500">
-            No defect data available. Upload a CSV or wait for the daily email sync.
-          </p>
-        </div>
+        <EmptyState
+          icon="\u26a0\ufe0f"
+          title="No Defect Data"
+          description="Upload a defects CSV above or wait for the daily email sync. You can also upload work orders for cross-referencing."
+        />
       ) : (
         <>
           {/* Stats */}

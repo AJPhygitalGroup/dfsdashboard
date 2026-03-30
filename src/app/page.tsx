@@ -5,6 +5,8 @@ import Link from "next/link";
 import StatCard from "@/components/StatCard";
 import { useBlobCsv } from "@/lib/use-blob-csv";
 import SyncBanner from "@/components/SyncBanner";
+import { DashboardSkeleton } from "@/components/LoadingSkeleton";
+import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/components/AuthProvider";
 
 function toBool(v: string | undefined | null): boolean {
@@ -62,9 +64,7 @@ export default function OverviewPage() {
   return (
     <div>
       {loading ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-gray-500">Loading dashboard data...</p>
-        </div>
+        <DashboardSkeleton />
       ) : hasData ? (
         <>
           {autoLoaded && (
@@ -132,21 +132,11 @@ export default function OverviewPage() {
           </div>
         </>
       ) : (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-4xl mb-3">📊</p>
-          <h2 className="text-xl font-semibold text-[#1a3a5f] mb-2">
-            Welcome to DFS Fleet Metrics
-          </h2>
-          <p className="text-gray-500 mb-4">
-            No data available yet. The agent syncs daily at 7:00 AM EST, or
-            navigate to a specific tab to upload CSVs manually.
-          </p>
-          <div className="flex justify-center gap-6 text-sm text-gray-400">
-            <span>🔍 Inspections</span>
-            <span>⚠️ Defects</span>
-            <span>🔧 Work Orders</span>
-          </div>
-        </div>
+        <EmptyState
+          icon="\ud83d\udcca"
+          title="Welcome to DFS Fleet Metrics"
+          description="No data available yet. The agent syncs daily at 7:00 AM EST, or navigate to a specific tab to upload CSVs manually."
+        />
       )}
     </div>
   );

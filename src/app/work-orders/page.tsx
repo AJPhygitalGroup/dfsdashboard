@@ -4,7 +4,11 @@ import { useState, useMemo } from "react";
 import StatCard from "@/components/StatCard";
 import DateRangeFilter from "@/components/DateRangeFilter";
 import SyncBanner from "@/components/SyncBanner";
+import CsvUploadZone from "@/components/CsvUploadZone";
+import { PageSkeleton } from "@/components/LoadingSkeleton";
+import EmptyState from "@/components/EmptyState";
 import { useBlobCsv } from "@/lib/use-blob-csv";
+import { useToast } from "@/lib/use-toast";
 import { useAuth } from "@/components/AuthProvider";
 
 interface WORow {
@@ -108,8 +112,9 @@ const statusColors: Record<WOStatus, string> = {
 };
 
 export default function WorkOrdersPage() {
-  const { rawData, loading, source, syncInfo, handleFileUpload } = useBlobCsv("work_orders");
+  const { rawData, loading, source, syncInfo, uploadState, handleFileUpload } = useBlobCsv("work_orders");
   const { user } = useAuth();
+  const { addToast } = useToast();
   const [filterStatus, setFilterStatus] = useState<WOStatus | "all">("all");
   const [filterTech, setFilterTech] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -247,15 +252,21 @@ export default function WorkOrdersPage() {
           Work Order Metrics
         </h2>
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4 mb-3">
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleFileUpload(f);
-            }}
-            className="block text-sm border rounded p-2 flex-1 min-w-[200px]"
-          />
+          <div className="flex-1 min-w-[200px]">
+            <CsvUploadZone
+              label="Upload Work Orders CSV"
+              uploadState={uploadState}
+              compact
+              onFileSelect={async (f) => {
+                const result = await handleFileUpload(f);
+                if (result.state === "success") {
+                  addToast("success", `Uploaded ${result.recordCount.toLocaleString()} work order records`);
+                } else if (result.error) {
+                  addToast("error", result.error);
+                }
+              }}
+            />
+          </div>
           {data.length > 0 && (
             <>
               <select
@@ -300,16 +311,13 @@ export default function WorkOrdersPage() {
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-gray-500">Loading data...</p>
-        </div>
+        <PageSkeleton statCards={4} />
       ) : data.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-4xl mb-3">🔧</p>
-          <p className="text-gray-500">
-            No work order data available. Upload a CSV or wait for the daily email sync.
-          </p>
-        </div>
+        <EmptyState
+          icon="\ud83d\udd27"
+          title="No Work Order Data"
+          description="Upload a work orders CSV above or wait for the daily email sync to populate this dashboard."
+        />
       ) : (
         <>
           {/* Stats */}

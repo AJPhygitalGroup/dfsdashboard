@@ -53,9 +53,18 @@ export default function DateRangeFilter({
     onRangeChange("", "");
   };
 
+  const isFiltered = !!(fromDate && toDate);
+
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <label className="text-xs text-gray-500 font-medium w-full sm:w-auto">Date Range:</label>
+      <label className="text-xs text-gray-500 font-medium w-full sm:w-auto flex items-center gap-1.5">
+        Date Range:
+        {isFiltered && (
+          <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+            Active
+          </span>
+        )}
+      </label>
       <div className="flex items-center gap-2 w-full sm:w-auto">
         <input
           type="date"
