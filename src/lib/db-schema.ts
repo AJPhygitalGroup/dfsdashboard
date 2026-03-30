@@ -35,6 +35,24 @@ export async function ensureSchema() {
     )
   `;
 
+  // Migration: add content column if table was created with old schema
+  await sql`
+    DO $$ BEGIN
+      ALTER TABLE csv_uploads ADD COLUMN content TEXT NOT NULL DEFAULT '';
+    EXCEPTION WHEN duplicate_column THEN
+      NULL;
+    END $$
+  `;
+
+  // Migration: drop blob_url column if it exists from old schema
+  await sql`
+    DO $$ BEGIN
+      ALTER TABLE csv_uploads DROP COLUMN blob_url;
+    EXCEPTION WHEN undefined_column THEN
+      NULL;
+    END $$
+  `;
+
   await sql`
     CREATE INDEX IF NOT EXISTS idx_csv_uploads_type ON csv_uploads(type)
   `;
