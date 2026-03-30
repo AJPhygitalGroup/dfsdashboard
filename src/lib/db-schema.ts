@@ -25,8 +25,8 @@ export async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS csv_uploads (
       id SERIAL PRIMARY KEY,
       type VARCHAR(50) NOT NULL,
-      blob_url TEXT NOT NULL,
       file_name VARCHAR(255) NOT NULL,
+      content TEXT NOT NULL,
       record_count INTEGER NOT NULL DEFAULT 0,
       uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       upload_source VARCHAR(50) NOT NULL DEFAULT 'manual',

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listUploads } from "@/lib/csv-uploads";
-import type { CsvType } from "@/lib/blob-store";
+import { listUploads, type CsvType } from "@/lib/csv-uploads";
 
 export const dynamic = "force-dynamic";
 
