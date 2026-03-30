@@ -45,6 +45,7 @@ export const config = {
     "/inspections",
     "/defects",
     "/work-orders",
+    "/history",
     "/admin",
     "/login",
   ],

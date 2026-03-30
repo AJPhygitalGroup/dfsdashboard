@@ -9,6 +9,7 @@ const tabs = [
   { href: "/inspections", label: "Inspections", icon: "\ud83d\udd0d" },
   { href: "/defects", label: "Defects", icon: "\u26a0\ufe0f" },
   { href: "/work-orders", label: "Work Orders", icon: "\ud83d\udd27" },
+  { href: "/history", label: "History", icon: "\ud83d\udcc1" },
 ];
 
 export default function Navigation() {
