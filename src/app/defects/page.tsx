@@ -55,6 +55,7 @@ export default function DefectsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showNotAddressed, setShowNotAddressed] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<string>("all");
   const [selectedDefectTypes, setSelectedDefectTypes] = useState<Set<string>>(new Set());
   const [defectFilterOpen, setDefectFilterOpen] = useState(false);
   const [defectSearch, setDefectSearch] = useState("");
@@ -231,6 +232,18 @@ export default function DefectsPage() {
     return results.sort((a, b) => b.count - a.count);
   }, [vehicleDefects, filteredDefects]);
 
+  // Unique organizations for the DSP filter
+  const uniqueOrgs = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredDefects.forEach((d) => {
+      const org = d.organizationName || "Unknown";
+      map[org] = (map[org] || 0) + 1;
+    });
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [filteredDefects]);
+
   // Unique defect descriptions for the filter (sorted by frequency)
   const uniqueDefectTypes = useMemo(() => {
     const map: Record<string, number> = {};
@@ -304,13 +317,22 @@ export default function DefectsPage() {
     return rows.sort((a, b) => b.count - a.count);
   }, [filteredDefects]);
 
-  // Apply defect type filter to the not-addressed list
+  // Apply org + defect type filters to the not-addressed list
   const filteredNotAddressedList = useMemo(() => {
-    if (selectedDefectTypes.size === 0 || selectedDefectTypes.size === uniqueDefectTypes.length) {
-      return notAddressedList;
+    let list = notAddressedList;
+
+    // Filter by organization/DSP
+    if (selectedOrg !== "all") {
+      list = list.filter((row) => row.org === selectedOrg);
     }
-    return notAddressedList.filter((row) => selectedDefectTypes.has(row.defect));
-  }, [notAddressedList, selectedDefectTypes, uniqueDefectTypes.length]);
+
+    // Filter by defect type
+    if (selectedDefectTypes.size > 0 && selectedDefectTypes.size < uniqueDefectTypes.length) {
+      list = list.filter((row) => selectedDefectTypes.has(row.defect));
+    }
+
+    return list;
+  }, [notAddressedList, selectedOrg, selectedDefectTypes, uniqueDefectTypes.length]);
 
   // Count for the filtered view
   const filteredNotAddressedCount = useMemo(() => {
@@ -400,10 +422,28 @@ export default function DefectsPage() {
                 Defects Not Addressed
                 <span className="text-xs text-gray-400 font-normal ml-2">
                   ({filteredNotAddressedCount} defects on {filteredNotAddressedList.length} entries
-                  {selectedDefectTypes.size < uniqueDefectTypes.length && ` \u2014 filtered`})
+                  {(selectedDefectTypes.size < uniqueDefectTypes.length || selectedOrg !== "all") && ` \u2014 filtered`})
                 </span>
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* DSP / Organization filter */}
+                <select
+                  value={selectedOrg}
+                  onChange={(e) => setSelectedOrg(e.target.value)}
+                  className={`text-xs px-2 py-1.5 rounded border transition-colors ${
+                    selectedOrg !== "all"
+                      ? "bg-blue-100 text-blue-800 border-blue-300"
+                      : "bg-gray-50 text-gray-600 border-gray-200"
+                  }`}
+                  disabled={!!user?.dsp}
+                >
+                  <option value="all">All DSPs ({uniqueOrgs.length})</option>
+                  {uniqueOrgs.map((o) => (
+                    <option key={o.name} value={o.name}>
+                      {o.name} ({o.count})
+                    </option>
+                  ))}
+                </select>
                 <div className="relative">
                   <button
                     onClick={() => setDefectFilterOpen(!defectFilterOpen)}
