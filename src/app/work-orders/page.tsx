@@ -17,22 +17,44 @@ interface WORow {
   defectDescription: string;
   defectReportedAt: string;
   workOrderCreatedAt: string;
+  workOrderStatus: string; // Raw status from CSV
   workApprovedBy: string;
   technician: string;
   technicianResponseAt: string;
   workOrderAccepted: boolean;
   workOrderCompletedAt: string;
+  workOrderCanceledAt: string;
+  workOrderSubmittedToFmcAt: string;
 }
 
-type WOStatus = "Pending" | "Accepted" | "Completed";
+type WOStatus = "Pending" | "Accepted" | "In Progress" | "Pending FMC" | "Completed" | "Declined" | "Canceled";
 
 function toBool(v: string | undefined | null): boolean {
   if (!v) return false;
   return v.toLowerCase().trim() === "true";
 }
 
+/** Map raw CSV status string to our canonical WOStatus type */
+function normalizeStatus(raw: string): WOStatus | null {
+  const s = (raw || "").trim().toLowerCase();
+  if (!s) return null;
+  if (s === "completed") return "Completed";
+  if (s === "declined") return "Declined";
+  if (s === "canceled" || s === "cancelled") return "Canceled";
+  if (s === "pending fmc") return "Pending FMC";
+  if (s === "in progress") return "In Progress";
+  if (s === "pending") return "Pending";
+  return null;
+}
+
 function getStatus(wo: WORow): WOStatus {
+  // Prefer the explicit Work Order Status field from the CSV
+  const explicit = normalizeStatus(wo.workOrderStatus);
+  if (explicit) return explicit;
+  // Fallback to derived status (older CSV schema without Work Order Status column)
+  if (wo.workOrderCanceledAt) return "Canceled";
   if (wo.workOrderCompletedAt) return "Completed";
+  if (wo.workOrderSubmittedToFmcAt) return "Pending FMC";
   if (wo.workOrderAccepted) return "Accepted";
   return "Pending";
 }
@@ -58,8 +80,15 @@ function timeInStatus(wo: WORow): string {
   switch (status) {
     case "Completed":
       return timeDiffHours(wo.workOrderCreatedAt, wo.workOrderCompletedAt);
+    case "Canceled":
+      return timeDiffHours(wo.workOrderCreatedAt, wo.workOrderCanceledAt);
+    case "Declined":
+      return timeDiffHours(wo.workOrderCreatedAt, wo.technicianResponseAt || now);
     case "Accepted":
-      return timeDiffHours(wo.technicianResponseAt, now);
+    case "In Progress":
+      return timeDiffHours(wo.technicianResponseAt || wo.workOrderCreatedAt, now);
+    case "Pending FMC":
+      return timeDiffHours(wo.workOrderSubmittedToFmcAt || wo.workOrderCreatedAt, now);
     case "Pending":
       return timeDiffHours(wo.workOrderCreatedAt, now);
   }
@@ -68,7 +97,7 @@ function timeInStatus(wo: WORow): string {
 /** Returns time in status as milliseconds for sorting */
 function timeInStatusMs(wo: WORow): number {
   const status = getStatus(wo);
-  const now = Date.now();
+  const nowIso = new Date().toISOString();
 
   let from = "";
   let to = "";
@@ -77,13 +106,26 @@ function timeInStatusMs(wo: WORow): number {
       from = wo.workOrderCreatedAt;
       to = wo.workOrderCompletedAt;
       break;
+    case "Canceled":
+      from = wo.workOrderCreatedAt;
+      to = wo.workOrderCanceledAt;
+      break;
+    case "Declined":
+      from = wo.workOrderCreatedAt;
+      to = wo.technicianResponseAt || nowIso;
+      break;
     case "Accepted":
-      from = wo.technicianResponseAt;
-      to = new Date(now).toISOString();
+    case "In Progress":
+      from = wo.technicianResponseAt || wo.workOrderCreatedAt;
+      to = nowIso;
+      break;
+    case "Pending FMC":
+      from = wo.workOrderSubmittedToFmcAt || wo.workOrderCreatedAt;
+      to = nowIso;
       break;
     case "Pending":
       from = wo.workOrderCreatedAt;
-      to = new Date(now).toISOString();
+      to = nowIso;
       break;
   }
   if (!from || !to) return 0;
@@ -108,8 +150,22 @@ function toDateKey(dateStr: string): string {
 const statusColors: Record<WOStatus, string> = {
   Pending: "bg-yellow-100 text-yellow-800",
   Accepted: "bg-blue-100 text-blue-800",
+  "In Progress": "bg-indigo-100 text-indigo-800",
+  "Pending FMC": "bg-purple-100 text-purple-800",
   Completed: "bg-green-100 text-green-800",
+  Declined: "bg-red-100 text-red-800",
+  Canceled: "bg-gray-200 text-gray-700",
 };
+
+const ALL_STATUSES: WOStatus[] = [
+  "Pending",
+  "Accepted",
+  "In Progress",
+  "Pending FMC",
+  "Completed",
+  "Declined",
+  "Canceled",
+];
 
 export default function WorkOrdersPage() {
   const { rawData, loading, source, syncInfo, uploadState, handleFileUpload } = useBlobCsv("work_orders");
@@ -129,11 +185,14 @@ export default function WorkOrdersPage() {
       defectDescription: r["Defect Description"] || "",
       defectReportedAt: r["Defect Reported At (EST)"] || "",
       workOrderCreatedAt: r["Work Order Created At (EST)"] || "",
+      workOrderStatus: r["Work Order Status"] || "",
       workApprovedBy: r["Work Approved By"] || "",
       technician: r["Technician"] || "",
       technicianResponseAt: r["Technician Response At (EST)"] || "",
       workOrderAccepted: toBool(r["Work Order Accepted"]),
       workOrderCompletedAt: r["Work Order Completed At (EST)"] || "",
+      workOrderCanceledAt: r["Work Order Canceled At (EST)"] || "",
+      workOrderSubmittedToFmcAt: r["Work Order Submitted to FMC At (EST)"] || "",
     }));
     // Filter by user's DSP if restricted
     if (user?.dsp) return parsed.filter((r) => r.dspName === user.dsp);
@@ -170,7 +229,11 @@ export default function WorkOrdersPage() {
     const counts: Record<WOStatus, number> = {
       Pending: 0,
       Accepted: 0,
+      "In Progress": 0,
+      "Pending FMC": 0,
       Completed: 0,
+      Declined: 0,
+      Canceled: 0,
     };
     filtered.forEach((wo) => {
       counts[getStatus(wo)]++;
@@ -182,17 +245,32 @@ export default function WorkOrdersPage() {
   const techStats = useMemo(() => {
     const map: Record<
       string,
-      { name: string; total: number; completed: number; pending: number; accepted: number }
+      {
+        name: string;
+        total: number;
+        completed: number;
+        pending: number;
+        accepted: number;
+        declined: number;
+      }
     > = {};
     filtered.forEach((wo) => {
       const tech = wo.technician || "Unassigned";
       if (!map[tech])
-        map[tech] = { name: tech, total: 0, completed: 0, pending: 0, accepted: 0 };
+        map[tech] = {
+          name: tech,
+          total: 0,
+          completed: 0,
+          pending: 0,
+          accepted: 0,
+          declined: 0,
+        };
       map[tech].total++;
       const status = getStatus(wo);
       if (status === "Completed") map[tech].completed++;
-      else if (status === "Accepted") map[tech].accepted++;
-      else map[tech].pending++;
+      else if (status === "Accepted" || status === "In Progress") map[tech].accepted++;
+      else if (status === "Declined") map[tech].declined++;
+      else map[tech].pending++; // Pending, Pending FMC, Canceled
     });
     return Object.values(map).sort((a, b) => b.total - a.total);
   }, [filtered]);
@@ -219,7 +297,15 @@ export default function WorkOrdersPage() {
           return (da - db) * dir;
         }
         case "status": {
-          const order: Record<WOStatus, number> = { Pending: 0, Accepted: 1, Completed: 2 };
+          const order: Record<WOStatus, number> = {
+            Pending: 0,
+            Accepted: 1,
+            "In Progress": 2,
+            "Pending FMC": 3,
+            Completed: 4,
+            Declined: 5,
+            Canceled: 6,
+          };
           return (order[getStatus(a)] - order[getStatus(b)]) * dir;
         }
         default:
@@ -277,9 +363,11 @@ export default function WorkOrdersPage() {
                 className="border rounded p-2 text-sm"
               >
                 <option value="all">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="Accepted">Accepted</option>
-                <option value="Completed">Completed</option>
+                {ALL_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s} ({statusCounts[s] || 0})
+                  </option>
+                ))}
               </select>
               <select
                 value={filterTech}
@@ -329,17 +417,20 @@ export default function WorkOrdersPage() {
             />
             <StatCard
               title="Pending"
-              value={statusCounts.Pending}
+              value={statusCounts.Pending + statusCounts["Pending FMC"]}
+              subtitle={`${statusCounts["Pending FMC"]} at FMC`}
               color="#f59e0b"
             />
             <StatCard
-              title="Accepted"
-              value={statusCounts.Accepted}
+              title="In Progress"
+              value={statusCounts.Accepted + statusCounts["In Progress"]}
+              subtitle={`${statusCounts.Accepted} accepted`}
               color="#3b82f6"
             />
             <StatCard
               title="Completed"
               value={statusCounts.Completed}
+              subtitle={`${statusCounts.Declined} declined`}
               color="#10b981"
             />
           </div>
@@ -356,8 +447,9 @@ export default function WorkOrdersPage() {
                     <th className="pb-2 pr-4">Technician</th>
                     <th className="pb-2 pr-4 text-right">Total</th>
                     <th className="pb-2 pr-4 text-right">Completed</th>
-                    <th className="pb-2 pr-4 text-right">Accepted</th>
+                    <th className="pb-2 pr-4 text-right">In Prog.</th>
                     <th className="pb-2 pr-4 text-right">Pending</th>
+                    <th className="pb-2 pr-4 text-right">Declined</th>
                     <th className="pb-2">Completion Rate</th>
                   </tr>
                 </thead>
@@ -386,6 +478,9 @@ export default function WorkOrdersPage() {
                         </td>
                         <td className="py-2 pr-4 text-right text-yellow-600">
                           {ts.pending}
+                        </td>
+                        <td className="py-2 pr-4 text-right text-red-600">
+                          {ts.declined}
                         </td>
                         <td className="py-2">
                           <div className="flex items-center gap-2">

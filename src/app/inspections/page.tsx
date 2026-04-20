@@ -13,6 +13,7 @@ import { useAuth } from "@/components/AuthProvider";
 interface InspectionRow {
   dspName: string;
   vehicleFleetId: string;
+  inspectorEmail: string;
   startTime: string;
   endTime: string;
   timeTakenSeconds: number;
@@ -36,6 +37,7 @@ export default function InspectionsPage() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [selectedDsp, setSelectedDsp] = useState<string>("all");
+  const [selectedInspector, setSelectedInspector] = useState<string>("all");
 
   // Auto-set DSP filter if user is restricted to a DSP
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function InspectionsPage() {
       return {
         dspName: r["DSP Name"] || "",
         vehicleFleetId: r["Vehicle Fleet ID"] || "",
+        inspectorEmail: r["Inspector Email"] || "",
         startTime: r["Start Time (EST)"] || "",
         endTime: r["End Time (EST)"] || "",
         timeTakenSeconds: secs,
@@ -61,10 +64,36 @@ export default function InspectionsPage() {
     return Array.from(set).sort();
   }, [data]);
 
+  const inspectors = useMemo(() => {
+    const set = new Set(data.map((d) => d.inspectorEmail).filter(Boolean));
+    return Array.from(set).sort();
+  }, [data]);
+
   const filtered = useMemo(() => {
-    if (selectedDsp === "all") return data;
-    return data.filter((d) => d.dspName === selectedDsp);
-  }, [data, selectedDsp]);
+    return data.filter((d) => {
+      if (selectedDsp !== "all" && d.dspName !== selectedDsp) return false;
+      if (selectedInspector !== "all" && d.inspectorEmail !== selectedInspector) return false;
+      return true;
+    });
+  }, [data, selectedDsp, selectedInspector]);
+
+  // Per-inspector stats
+  const inspectorStats = useMemo(() => {
+    const map: Record<string, { count: number; totalTime: number }> = {};
+    filtered.forEach((d) => {
+      const email = d.inspectorEmail || "Unknown";
+      if (!map[email]) map[email] = { count: 0, totalTime: 0 };
+      map[email].count++;
+      map[email].totalTime += d.timeTakenSeconds;
+    });
+    return Object.entries(map)
+      .map(([email, stats]) => ({
+        email,
+        count: stats.count,
+        avgTime: stats.totalTime / stats.count,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [filtered]);
 
   const totalVehicles = filtered.length;
   const avgTime = totalVehicles > 0
@@ -120,19 +149,39 @@ export default function InspectionsPage() {
             />
           </div>
           {data.length > 0 && (
-            <select
-              value={selectedDsp}
-              onChange={(e) => setSelectedDsp(e.target.value)}
-              className="border rounded p-2 text-sm"
-              disabled={!!user?.dsp}
-            >
-              {!user?.dsp && <option value="all">All DSPs</option>}
-              {dspNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+            <>
+              <select
+                value={selectedDsp}
+                onChange={(e) => setSelectedDsp(e.target.value)}
+                className="border rounded p-2 text-sm"
+                disabled={!!user?.dsp}
+              >
+                {!user?.dsp && <option value="all">All DSPs</option>}
+                {dspNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              {inspectors.length > 0 && (
+                <select
+                  value={selectedInspector}
+                  onChange={(e) => setSelectedInspector(e.target.value)}
+                  className={`border rounded p-2 text-sm transition-colors ${
+                    selectedInspector !== "all"
+                      ? "bg-blue-50 border-blue-300 text-blue-800"
+                      : ""
+                  }`}
+                >
+                  <option value="all">All Inspectors</option>
+                  {inspectors.map((email) => (
+                    <option key={email} value={email}>
+                      {email.split("@")[0]}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
           )}
         </div>
         {source === "blob" && (
@@ -164,11 +213,63 @@ export default function InspectionsPage() {
               color="#10b981"
             />
             <StatCard
-              title="Total DSPs"
-              value={dspNames.length}
+              title="Active Inspectors"
+              value={inspectorStats.length}
+              subtitle={`${dspNames.length} DSPs`}
               color="#8b5cf6"
             />
           </div>
+
+          {/* Inspector Performance */}
+          {inspectorStats.length > 0 && (
+            <div className="bg-white rounded-lg shadow p-5 mb-6">
+              <h3 className="font-semibold text-[#1a3a5f] mb-3">
+                Inspector Performance
+                <span className="text-xs text-gray-400 font-normal ml-2">
+                  (vehicles inspected and avg time per inspector)
+                </span>
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-gray-500">
+                      <th className="pb-2">Inspector</th>
+                      <th className="pb-2 text-right">Inspections</th>
+                      <th className="pb-2 text-right">Avg Time</th>
+                      <th className="pb-2">Performance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inspectorStats.map((ins) => {
+                      const barWidth = Math.min(
+                        (ins.avgTime / (avgTime * 2)) * 100,
+                        100
+                      );
+                      const color = ins.avgTime <= avgTime ? "#10b981" : "#ef4444";
+                      return (
+                        <tr key={ins.email} className="border-b last:border-0 hover:bg-gray-50">
+                          <td className="py-2 font-medium">{ins.email.split("@")[0]}</td>
+                          <td className="py-2 text-right">{ins.count}</td>
+                          <td className="py-2 text-right">{formatDur(ins.avgTime)}</td>
+                          <td className="py-2">
+                            <div className="w-full bg-gray-100 rounded-full h-4">
+                              <div
+                                className="h-4 rounded-full"
+                                style={{
+                                  width: `${barWidth}%`,
+                                  backgroundColor: color,
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Slowest & Fastest */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -291,6 +392,7 @@ export default function InspectionsPage() {
                     <th className="pb-2 pr-4">#</th>
                     <th className="pb-2 pr-4">DSP</th>
                     <th className="pb-2 pr-4">Vehicle</th>
+                    <th className="pb-2 pr-4">Inspector</th>
                     <th className="pb-2 pr-4">Start</th>
                     <th className="pb-2 pr-4">End</th>
                     <th className="pb-2 text-right">Duration</th>
@@ -303,6 +405,9 @@ export default function InspectionsPage() {
                       <td className="py-1.5 pr-4">{row.dspName}</td>
                       <td className="py-1.5 pr-4 font-medium">
                         {row.vehicleFleetId}
+                      </td>
+                      <td className="py-1.5 pr-4 text-xs text-gray-500">
+                        {row.inspectorEmail ? row.inspectorEmail.split("@")[0] : "\u2014"}
                       </td>
                       <td className="py-1.5 pr-4 text-gray-500 text-xs">
                         {row.startTime.split(" ")[1]?.substring(0, 8) || ""}

@@ -16,11 +16,15 @@ interface DefectRow {
   defectReportedAt: string;
   organizationName: string;
   vehicleFleetId: string;
+  vehicleClass: string;
   defectDescription: string;
   reportedBy: string;
+  defectAcknowledged: boolean;
   defectWorkApproved: boolean;
   defectWorkAccepted: boolean;
   defectWorkCompleted: boolean;
+  defectRejectedReason: string;
+  defectNotes: string;
 }
 
 interface WorkOrderRow {
@@ -56,6 +60,7 @@ export default function DefectsPage() {
   const [dateTo, setDateTo] = useState("");
   const [showNotAddressed, setShowNotAddressed] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<string>("all");
+  const [selectedVehicleClass, setSelectedVehicleClass] = useState<string>("all");
   const [selectedDefectTypes, setSelectedDefectTypes] = useState<Set<string>>(new Set());
   const [defectFilterOpen, setDefectFilterOpen] = useState(false);
   const [defectSearch, setDefectSearch] = useState("");
@@ -67,11 +72,15 @@ export default function DefectsPage() {
         defectReportedAt: r["Defect Reported At"] || "",
         organizationName: r["Organization Name"] || "",
         vehicleFleetId: r["Vehicle Fleet ID"] || "",
+        vehicleClass: r["Vehicle Class"] || "",
         defectDescription: r["Defect Description"] || "",
         reportedBy: r["Reported By"] || "",
+        defectAcknowledged: toBool(r["Defect Acknowledged"]),
         defectWorkApproved: toBool(r["Defect Work Approved"]),
         defectWorkAccepted: toBool(r["Defect Work Accepted"]),
         defectWorkCompleted: toBool(r["Defect Work Completed"]),
+        defectRejectedReason: r["Defect Rejected Reason"] || "",
+        defectNotes: r["Defect Notes"] || "",
       }));
       setDefects(user?.dsp ? parsed.filter((d) => d.organizationName === user.dsp) : parsed);
     }
@@ -121,15 +130,34 @@ export default function DefectsPage() {
 
   // Date-filtered defects (before exclusion logic)
   const dateFilteredDefects = useMemo(() => {
-    if (!dateFrom && !dateTo) return defects;
-    return defects.filter((d) => {
-      const dk = toDateKey(d.defectReportedAt);
-      if (!dk) return false;
-      if (dateFrom && dk < dateFrom) return false;
-      if (dateTo && dk > dateTo) return false;
-      return true;
+    let list = defects;
+    if (dateFrom || dateTo) {
+      list = list.filter((d) => {
+        const dk = toDateKey(d.defectReportedAt);
+        if (!dk) return false;
+        if (dateFrom && dk < dateFrom) return false;
+        if (dateTo && dk > dateTo) return false;
+        return true;
+      });
+    }
+    // Vehicle class filter
+    if (selectedVehicleClass !== "all") {
+      list = list.filter((d) => (d.vehicleClass || "Unknown") === selectedVehicleClass);
+    }
+    return list;
+  }, [defects, dateFrom, dateTo, selectedVehicleClass]);
+
+  // Unique vehicle classes
+  const uniqueVehicleClasses = useMemo(() => {
+    const map: Record<string, number> = {};
+    defects.forEach((d) => {
+      const c = d.vehicleClass || "Unknown";
+      map[c] = (map[c] || 0) + 1;
     });
-  }, [defects, dateFrom, dateTo]);
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [defects]);
 
   // Filter defects: exclude excluded defects and those that became work orders
   const filteredDefects = useMemo(() => {
@@ -264,13 +292,23 @@ export default function DefectsPage() {
 
   // Not-addressed defects: full detail list grouped by org > vehicle > defect
   const notAddressedList = useMemo(() => {
-    // Group: org → vehicle → defect → count + reporters
+    // Group: org → vehicle → defect → count + reporters + vehicleClass + notes + rejected reasons
     const orgMap: Record<
       string,
       Record<
         string,
         {
-          defects: Record<string, { count: number; reporters: Set<string>; dates: string[] }>;
+          vehicleClass: string;
+          defects: Record<
+            string,
+            {
+              count: number;
+              reporters: Set<string>;
+              dates: string[];
+              notes: string[];
+              rejectedReasons: string[];
+            }
+          >;
         }
       >
     > = {};
@@ -279,23 +317,35 @@ export default function DefectsPage() {
       const org = d.organizationName || "Unknown";
       const vid = d.vehicleFleetId || "Unknown";
       if (!orgMap[org]) orgMap[org] = {};
-      if (!orgMap[org][vid]) orgMap[org][vid] = { defects: {} };
+      if (!orgMap[org][vid]) orgMap[org][vid] = { vehicleClass: d.vehicleClass || "", defects: {} };
       if (!orgMap[org][vid].defects[d.defectDescription]) {
-        orgMap[org][vid].defects[d.defectDescription] = { count: 0, reporters: new Set(), dates: [] };
+        orgMap[org][vid].defects[d.defectDescription] = {
+          count: 0,
+          reporters: new Set(),
+          dates: [],
+          notes: [],
+          rejectedReasons: [],
+        };
       }
-      orgMap[org][vid].defects[d.defectDescription].count++;
-      orgMap[org][vid].defects[d.defectDescription].reporters.add(d.reportedBy);
-      orgMap[org][vid].defects[d.defectDescription].dates.push(d.defectReportedAt);
+      const info = orgMap[org][vid].defects[d.defectDescription];
+      info.count++;
+      info.reporters.add(d.reportedBy);
+      info.dates.push(d.defectReportedAt);
+      if (d.defectNotes && d.defectNotes.trim()) info.notes.push(d.defectNotes);
+      if (d.defectRejectedReason && d.defectRejectedReason.trim()) info.rejectedReasons.push(d.defectRejectedReason);
     });
 
     // Flatten to a sortable array
     const rows: {
       org: string;
       vehicle: string;
+      vehicleClass: string;
       defect: string;
       count: number;
       reporters: string[];
       lastReported: string;
+      notes: string[];
+      rejectedReasons: string[];
     }[] = [];
 
     Object.entries(orgMap).forEach(([org, vehicles]) => {
@@ -305,10 +355,13 @@ export default function DefectsPage() {
           rows.push({
             org,
             vehicle,
+            vehicleClass: data.vehicleClass,
             defect,
             count: info.count,
             reporters: [...info.reporters],
             lastReported: sortedDates[sortedDates.length - 1] || "",
+            notes: info.notes,
+            rejectedReasons: info.rejectedReasons,
           });
         });
       });
@@ -366,13 +419,36 @@ export default function DefectsPage() {
           />
         </div>
         {defects.length > 0 && (
-          <DateRangeFilter
-            dates={allDates}
-            onRangeChange={(from, to) => {
-              setDateFrom(from);
-              setDateTo(to);
-            }}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <DateRangeFilter
+              dates={allDates}
+              onRangeChange={(from, to) => {
+                setDateFrom(from);
+                setDateTo(to);
+              }}
+            />
+            {uniqueVehicleClasses.length > 1 && (
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-gray-500 font-medium">Vehicle Class:</label>
+                <select
+                  value={selectedVehicleClass}
+                  onChange={(e) => setSelectedVehicleClass(e.target.value)}
+                  className={`text-xs px-2 py-1.5 rounded border transition-colors ${
+                    selectedVehicleClass !== "all"
+                      ? "bg-blue-100 text-blue-800 border-blue-300"
+                      : "bg-gray-50 text-gray-600 border-gray-200"
+                  }`}
+                >
+                  <option value="all">All ({defects.length})</option>
+                  {uniqueVehicleClasses.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.name} ({c.count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         )}
         {defectsSource === "blob" && (
           <SyncBanner syncTimestamp={syncInfo?.timestamp} />
@@ -555,9 +631,11 @@ export default function DefectsPage() {
                     <tr className="border-b text-left text-gray-500">
                       <th className="pb-2 pr-3">Organization</th>
                       <th className="pb-2 pr-3">Vehicle</th>
+                      <th className="pb-2 pr-3">Class</th>
                       <th className="pb-2 pr-3">Defect Description</th>
                       <th className="pb-2 pr-3 text-right">Times Reported</th>
                       <th className="pb-2 pr-3">Reported By</th>
+                      <th className="pb-2 pr-3">Notes</th>
                       <th className="pb-2 pr-3">Last Reported</th>
                     </tr>
                   </thead>
@@ -569,6 +647,13 @@ export default function DefectsPage() {
                       >
                         <td className="py-2 pr-3 text-xs">{row.org}</td>
                         <td className="py-2 pr-3 font-medium text-xs">{row.vehicle}</td>
+                        <td className="py-2 pr-3 text-xs">
+                          {row.vehicleClass && (
+                            <span className="inline-block bg-slate-100 text-slate-700 rounded px-1.5 py-0.5 text-[10px]">
+                              {row.vehicleClass}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 pr-3 max-w-sm">
                           <span className="line-clamp-2 text-xs">{row.defect}</span>
                         </td>
@@ -600,6 +685,23 @@ export default function DefectsPage() {
                             </span>
                           )}
                         </td>
+                        <td className="py-2 pr-3 text-xs text-gray-500 max-w-[200px]">
+                          {row.notes.length > 0 ? (
+                            <span
+                              className="line-clamp-2 italic"
+                              title={row.notes.join("\n---\n")}
+                            >
+                              {row.notes[0]}
+                              {row.notes.length > 1 && (
+                                <span className="text-gray-400 not-italic">
+                                  {" "}(+{row.notes.length - 1} more)
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300">\u2014</span>
+                          )}
+                        </td>
                         <td className="py-2 pr-3 text-xs text-gray-400">
                           {row.lastReported
                             ? new Date(row.lastReported).toLocaleDateString()
@@ -609,7 +711,7 @@ export default function DefectsPage() {
                     ))}
                     {filteredNotAddressedList.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="py-6 text-center text-gray-400 text-sm">
+                        <td colSpan={8} className="py-6 text-center text-gray-400 text-sm">
                           No defects match the current filter. Adjust the defect filter above.
                         </td>
                       </tr>
