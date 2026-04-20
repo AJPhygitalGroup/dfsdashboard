@@ -8,6 +8,7 @@ import SyncBanner from "@/components/SyncBanner";
 import CsvUploadZone from "@/components/CsvUploadZone";
 import { PageSkeleton } from "@/components/LoadingSkeleton";
 import EmptyState from "@/components/EmptyState";
+import NotePopover from "@/components/NotePopover";
 import { useBlobCsv } from "@/lib/use-blob-csv";
 import { useToast } from "@/lib/use-toast";
 import { useAuth } from "@/components/AuthProvider";
@@ -655,7 +656,22 @@ export default function DefectsPage() {
                           )}
                         </td>
                         <td className="py-2 pr-3 max-w-sm">
-                          <span className="line-clamp-2 text-xs">{row.defect}</span>
+                          <NotePopover
+                            notes={row.notes}
+                            rejectedReasons={row.rejectedReasons}
+                          >
+                            <span className="line-clamp-2 text-xs inline-block">
+                              {row.defect}
+                              {(row.notes.length > 0 || row.rejectedReasons.length > 0) && (
+                                <span
+                                  className="ml-1 inline-flex items-center text-[10px] text-amber-600 align-middle"
+                                  aria-label="Has inspector notes"
+                                >
+                                  &#128172;
+                                </span>
+                              )}
+                            </span>
+                          </NotePopover>
                         </td>
                         <td className="py-2 pr-3 text-right">
                           <span
@@ -687,19 +703,21 @@ export default function DefectsPage() {
                         </td>
                         <td className="py-2 pr-3 text-xs text-gray-500 max-w-[200px]">
                           {row.notes.length > 0 ? (
-                            <span
-                              className="line-clamp-2 italic"
-                              title={row.notes.join("\n---\n")}
+                            <NotePopover
+                              notes={row.notes}
+                              rejectedReasons={row.rejectedReasons}
                             >
-                              {row.notes[0]}
-                              {row.notes.length > 1 && (
-                                <span className="text-gray-400 not-italic">
-                                  {" "}(+{row.notes.length - 1} more)
-                                </span>
-                              )}
-                            </span>
+                              <span className="line-clamp-2 italic inline-block">
+                                {row.notes[0]}
+                                {row.notes.length > 1 && (
+                                  <span className="text-gray-400 not-italic">
+                                    {" "}(+{row.notes.length - 1} more)
+                                  </span>
+                                )}
+                              </span>
+                            </NotePopover>
                           ) : (
-                            <span className="text-gray-300">\u2014</span>
+                            <span className="text-gray-300">&mdash;</span>
                           )}
                         </td>
                         <td className="py-2 pr-3 text-xs text-gray-400">
